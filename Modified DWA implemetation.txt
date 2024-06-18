@@ -1,0 +1,42 @@
+# This is the outline for DWA check for collision implemeted in wheelchair
+## Expected behavior
+- User move joystick
+- System check for possible collision with velocity from joystick
+- If collision not predicted, output velocity from joystick
+- If collision is detected, output modified velocity
+
+## Implemetation
+### Process
+- Receive scan
+- receive odom (for current vel)
+- receive joystick input
+
+- publish velocity
+
+- calculate velocity from joystick (unknown) => (vj, wj)
+- simulate trajectory for predict_time_ second with time interval predict_timestep_
+- Check for traj collision
+- If not collide, publish Vj
+- If collide:
+    - Alternate behavior():
+        - Generate dwa from current velocity
+        - Discretize dwa => possible pair (v,w)
+        - Check for collision for each pair
+        - Simulate all trajectory from possible pair of (v,w)
+        - Select pair closest to (vj, wj)
+        - Publish selected pair
+
+### Detail of code implementation
+- ModifiedDWA class: 
+    - generate DWA 
+    - Discretize dwa
+    - Choose best velocity
+
+
+- Abstract class Footprint:
+    - create Footprint
+    - check point inside footprint
+    - modified footprint (this is for dynamic footprint implementation)
+
+### Scratch
+Everything is with respect to the base_footprint
