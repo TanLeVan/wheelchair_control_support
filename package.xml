@@ -12,6 +12,7 @@
   <exec_depend>urg_node2</exec_depend>
   <exec_depend>ros2_laser_scan_merger</exec_depend>
   <exec_depend>ros2_whill</exec_depend>
+  <exec_depend>ros2_whill_interfaces<exec_depend>
 
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>

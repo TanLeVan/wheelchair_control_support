@@ -94,7 +94,7 @@ private:
     }
 
     sensor_msgs::msg::Joy calculate_joy_from_velocity(geometry_msgs::msg::Twist  vel)
-        {
+    {
         sensor_msgs::msg::Joy joy{};
         joy.axes.resize(2);
         /*Forward backward movement*/
