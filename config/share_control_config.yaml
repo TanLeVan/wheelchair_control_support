@@ -3,13 +3,16 @@ share_control_node:
     predict_time:  3.          #double
     predict_timestep: 0.2      #double
     scan_to_obstacle_range: 2. #double 
-    skip_point:  2            #int
-    period: 0.05  #in second. Amount of time needed to complete one cycle of vel calculation
+    skip_point:  2             #int
+    period: 0.1                #in second. Amount of time needed to complete one cycle of vel calculation
     linear_velocity_sample_size: 5
     yaw_rate_sample_size: 10
-    max_linear_vel: 0.4     # max linear velocity in x direction
-    min_linear_vel: -0.      # min linear velocity. Can be negative in case of backward movemet
-    max_yaw_rate: 0.6        # Maximum yaw rate in both clockwise and counter clockwise direction. Can only be positive. Min yaw rate = 0
-    max_acceleration: 0.4    # max acceleration in x direction (forward acceleration)
-    max_decceleration: 0.4   # max decceleration in x direction (backward acceleration)
-    max_yaw_acceleration: 1.25 # maximum yaw rate acceleration in both clockwise and counter clockwise.
+    
+    max_linear_vel: 1.        # max linear velocity in x direction (0.3-1.6)(m/s) 
+    min_linear_vel: -0.3       # min linear velocity. 
+                               # Can be negative in case of backward movement . (-0.3 - -0.8)(m/s)
+                               # (Maximum backward vel)
+    max_yaw_rate: 1.6          # Maximum yaw rate in both clockwise and counter clockwise direction. Can only be positive. Min yaw rate = 0 (rad/s)
+    max_acceleration: 1.       # max acceleration in both direction (forward backward) ( 0.28  - 1.38m/ss)
+    max_decceleration: 2.     # max decceleration in both direction (forward backward) (1.2 - 2.5m/ss)
+    max_yaw_acceleration: 2.5  # maximum yaw rate acceleration in both clockwise and counter clockwise (rad/ss)

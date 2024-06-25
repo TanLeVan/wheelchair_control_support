@@ -68,9 +68,15 @@ public:
     void scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan);
 
     /**
-     * Calculate velocity corresponding to joystick input
+     * Calculate corresponding velocity from WHILL joystick input
+     * Joy input is joystick_ member variable
     **/
     geometry_msgs::msg::Twist calculate_velocity_from_joy(void);
+
+    /**
+     * Calculate corresponding virtual joystick from velocity
+     */
+    sensor_msgs::msg::Joy calculate_joy_from_velocity(geometry_msgs::msg::Twist  vel);
 
     /**
      * Generate trajectory from linear and angular velocity for sim_time_ in the future
@@ -113,7 +119,15 @@ public:
     **/
     std::vector<std::pair<double, double>> discretize_dynamic_window(const Window &window);
 
+    /***
+     * Make command velocity to 0
+     */
     void reset_command_vel(void);
+
+    /**
+     * Publish velocity as discrete velocity point that increase linearly until the desire velocity is reached.
+     * **/
+    void publish_vel_smooth(int no_step);
 
 private:
     sensor_msgs::msg::LaserScan scan_;
@@ -124,8 +138,9 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_; //Sensor QoS should be use
     rclcpp::Subscription<nav_msgs::msg::Odometry >::SharedPtr odom_subscriber_; //Sensor QoS should be use
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_subscriber_; //Sensor QoS should be use
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
+    //rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr obs_list_pub_; // For visualizing obstacle
+    rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr traj_visualizer_pub_; 
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};

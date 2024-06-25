@@ -1,3 +1,8 @@
+/****
+ * Test the control by velocity feature of the WHILL
+ * 
+ */
+
 #include <chrono>
 #include <functional>
 #include <memory>

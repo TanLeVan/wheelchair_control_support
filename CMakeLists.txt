@@ -52,12 +52,29 @@ target_include_directories(calculate_acceleration PUBLIC
   ./include
 )
 
+add_executable(joy_control src/simple_joystick_publisher.cpp)
+ament_target_dependencies(joy_control
+  rclcpp
+  sensor_msgs
+)
+
+add_executable(odometry_listener src/odometry_listener.cpp)
+ament_target_dependencies(odometry_listener rclcpp nav_msgs)
+
+
+add_executable(velocity_by_joystick_control_node src/vel_joy_exchange.cpp)
+ament_target_dependencies(velocity_by_joystick_control_node rclcpp sensor_msgs geometry_msgs)
+
 # Installing  
-install(TARGETS 
-	simple_velocity_publisher 
-	footprint_visualizer 
-	calculate_acceleration
-	share_control_node
+install(
+  TARGETS 
+    simple_velocity_publisher 
+    footprint_visualizer 
+    calculate_acceleration
+    share_control_node
+    joy_control
+    odometry_listener
+    velocity_by_joystick_control_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -55,7 +55,8 @@ ShareControl::ShareControl()
                                                                           std::bind(&ShareControl::odom_callback, this, std::placeholders::_1));
     joy_subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>("/whill/states/joy", rclcpp::SensorDataQoS(),
                                                                        std::bind(&ShareControl::joystick_callback, this, std::placeholders::_1));
-    vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/whill/controller/cmd_vel", 1);
+    //vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/whill/controller/cmd_vel", 1);
+    joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/controller/joy", 1);
     obs_list_pub_ = this->create_publisher<geometry_msgs::msg::PoseArray>("/obstacle_list", 10);
     traj_visualizer_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/trajectory_visualization", 10);
 
@@ -143,30 +144,44 @@ geometry_msgs::msg::Twist ShareControl::calculate_velocity_from_joy()
     if (is_joystick_updated_)
     {
         //Linear velocity
-        joy_vel.linear.x = joystick_.axes[1] * whill_dynamic_.max_linear_vel_;
-        if (joy_vel.linear.x > whill_dynamic_.max_linear_vel_)
+        /*Forward movement*/
+        if (joystick_.axes[1] >= 0)
         {
-            joy_vel.linear.x = whill_dynamic_.max_linear_vel_;
+            joy_vel.linear.x = joystick_.axes[1] * whill_dynamic_.max_linear_vel_;
         }
-        if (joy_vel.linear.x < whill_dynamic_.min_linear_vel_)
+        /*Backward movement*/
+        else if (joystick_.axes[1] < 0)
         {
-            joy_vel.linear.x = whill_dynamic_.min_linear_vel_;
+            joy_vel.linear.x = -joystick_.axes[1] * whill_dynamic_.min_linear_vel_;
         }
 
         //Angular velocity
-        joy_vel.angular.z = joystick_.axes[0] * whill_dynamic_.max_yaw_acceleration_;
-        if (joy_vel.angular.z > whill_dynamic_.max_yaw_rate_)
-        {
-            joy_vel.angular.z = whill_dynamic_.max_yaw_rate_;
-        }
-        if (joy_vel.angular.z < -whill_dynamic_.max_yaw_rate_)
-        {
-            joy_vel.angular.z = -whill_dynamic_.max_yaw_rate_;
-        }
+        joy_vel.angular.z = joystick_.axes[0] * whill_dynamic_.max_yaw_rate_;
     }
     // std::cout << "Joy vel linear: " << joy_vel.linear.x << std::endl;
     // std::cout << "Joy vel angular: " << joy_vel.angular.z << std::endl;
     return joy_vel;
+}
+
+sensor_msgs::msg::Joy ShareControl::calculate_joy_from_velocity(geometry_msgs::msg::Twist  vel)
+{
+    sensor_msgs::msg::Joy joy{};
+    joy.axes.resize(2);
+    /*Forward backward movement*/
+    if (vel.linear.x >= 0 && vel.linear.x <= whill_dynamic_.max_linear_vel_)
+    {
+        joy.axes[1] = vel.linear.x / whill_dynamic_.max_linear_vel_ ;
+    }
+    else if (vel.linear.x < 0 && vel.linear.x >= whill_dynamic_.min_linear_vel_)
+    {
+        joy.axes[1] = - vel.linear.x/whill_dynamic_.min_linear_vel_ ;
+    }
+
+    if(vel.angular.z >= - whill_dynamic_.max_yaw_rate_ && vel.angular.z <= whill_dynamic_.max_yaw_rate_)
+    {
+        joy.axes[0] =vel.angular.z/whill_dynamic_.max_yaw_rate_;
+        }
+    return joy;
 }
 
 std::vector<ShareControl::State> ShareControl::generate_trajectory(const double linear_vel, const double yaw_rate)
@@ -233,7 +248,7 @@ void ShareControl::trajectory_visualization(const std::vector<State> &traj)
 ShareControl::Window ShareControl::cal_dynamic_window()
 {
     Window window;
-    window.min_velocity_ = std::max(odom_.twist.twist.linear.x - whill_dynamic_.max_deceleration_ * period_, whill_dynamic_.min_linear_vel_);
+    window.min_velocity_ = std::max(odom_.twist.twist.linear.x - whill_dynamic_.max_deceleration_ * period_, 0.);
     window.max_velocity_ = std::min(odom_.twist.twist.linear.x + whill_dynamic_.max_acceleration_ * period_, whill_dynamic_.max_linear_vel_);
     window.max_yaw_rate_ = std::min(odom_.twist.twist.angular.z + whill_dynamic_.max_yaw_acceleration_ * period_, whill_dynamic_.max_yaw_rate_);
     window.min_yaw_rate_ = std::max(odom_.twist.twist.angular.z - whill_dynamic_.max_yaw_acceleration_ * period_, -whill_dynamic_.max_yaw_rate_);
@@ -307,13 +322,30 @@ void ShareControl::main_process()
             trajectory_visualization(best_traj);
             std::cout << "Alternative velocity done" << std::endl;
         }
-        vel_pub_->publish(cmd_vel_);
+        joy_pub_->publish(calculate_joy_from_velocity(cmd_vel_));
+        //vel_pub_->publish(cmd_vel_);
         is_scan_updated_ = false;
         is_odom_updated_ = false;
         is_joystick_updated_ = false;
     }
 }
 
+// void ShareControl::publish_vel_smooth(int no_step)
+// {
+//     float linear_vel_step = (cmd_vel_.linear.x - odom_.twist.twist.linear.x)/no_step;
+//     float yaw_rate_step = (cmd_vel_.angular.z - odom_.twist.twist.angular.z)/no_step;
+//     geometry_msgs::msg::Twist published_vel{odom_.twist.twist};
+//     rclcpp::Rate rate(
+//         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(period_/no_step)) //rclcpp::Rate only accept nanosecond
+//     );
+//     for(int i = 1; i<=no_step; ++i)
+//     {
+//         published_vel.linear.x += i*linear_vel_step;
+//         published_vel.angular.z += i*yaw_rate_step;
+//         vel_pub_->publish(published_vel);
+//         rate.sleep();
+//     }
+// }
 int main(int argc, char* argv[])
 {
     rclcpp::init(argc, argv);

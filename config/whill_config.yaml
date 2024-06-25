@@ -1,0 +1,8 @@
+velocity_by_joystick_control_node:
+  ros__parameters:
+    max_linear_vel: 1.     # max linear velocity in x direction (m/s)
+    min_linear_vel: -0.3    # min linear velocity. Can be negative in case of backward movemet (m/s). Range: 0->-negative numer
+    max_yaw_rate: 1.6        # Maximum yaw rate in both clockwise and counter clockwise direction. Can only be positive. Min yaw rate = 0 (rad/s)
+    max_acceleration: 1.    # max acceleration  (m/ss)
+    max_decceleration: 1.5  # max decceleration  (m/ss)
+    max_yaw_acceleration: 2.5 # maximum yaw rate acceleration in both clockwise and counter clockwise. (rad/ss)
