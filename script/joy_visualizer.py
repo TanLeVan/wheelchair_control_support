@@ -27,12 +27,12 @@ class JoyVisualizer(Node):
 
     def joy_callback(self, msg):
         self.y1_data = [msg.axes[1]]
-        self.x1_data = [msg.axes[0]]
+        self.x1_data = [-msg.axes[0]]
         self.update_plot()
 
     def virtual_joy_callback(self, msg):
         self.y2_data = [msg.axes[1]]
-        self.x2_data = [msg.axes[0]]
+        self.x2_data = [-msg.axes[0]]
         self.update_plot()
 
     def update_plot(self):
