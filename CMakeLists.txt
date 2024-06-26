@@ -7,6 +7,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -66,6 +67,9 @@ add_executable(velocity_by_joystick_control_node src/vel_joy_exchange.cpp)
 ament_target_dependencies(velocity_by_joystick_control_node rclcpp sensor_msgs geometry_msgs)
 
 # Installing  
+
+ament_python_install_package(${PROJECT_NAME})
+
 install(
   TARGETS 
     simple_velocity_publisher 
@@ -78,12 +82,20 @@ install(
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# Install Python executables
+install(PROGRAMS
+	script/joy_visualizer.py
+	DESTINATION lib/${PROJECT_NAME}
+	)
+
 install(DIRECTORY 
 	config 
 	launch
 	model
   DESTINATION share/${PROJECT_NAME}
 )
+
+
 
 
 if(BUILD_TESTING)
