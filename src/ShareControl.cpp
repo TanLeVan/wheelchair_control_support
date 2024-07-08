@@ -6,6 +6,7 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "wheelchair_control_support/CircularFootprint.hpp"
+#include "wheelchair_control_support/RectangularFootprint.hpp"
 
 using namespace std::chrono_literals;
 
@@ -43,7 +44,7 @@ ShareControl::ShareControl()
     whill_dynamic_.max_acceleration_ = this->get_parameter("max_acceleration").as_double();
     whill_dynamic_.max_deceleration_ = this->get_parameter("max_decceleration").as_double();
 
-    footprint_ptr_ = std::make_unique<CircularFootprint>(0.5); // radius = 0.5m
+    footprint_ptr_ = std::make_unique<RectangularFootprint>(0.6,1);  //Width = 0.7 and length = 1. Because the x-direction is forward
 
     /*Initializing tf listener*/
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -215,7 +216,7 @@ bool ShareControl::check_for_colllision(const std::vector<State> &traj)
 {
     for (auto state : traj)
     {
-        footprint_ptr_->move_footprint(state.x_, state.y_);
+        footprint_ptr_->move_footprint(state.x_, state.y_, state.yaw_);
         for (geometry_msgs::msg::Pose obs : obs_list_.poses)
         {
             if (!footprint_ptr_->check_point_inside_footprint(obs.position.x, obs.position.y))
@@ -229,18 +230,22 @@ bool ShareControl::check_for_colllision(const std::vector<State> &traj)
 
 void ShareControl::trajectory_visualization(const std::vector<State> &traj)
 {
-    visualization_msgs::msg::MarkerArray traj_with_footprint;
-
+    /*Delete all existing marker in Rviz*/
     visualization_msgs::msg::MarkerArray delete_marker_array;
     visualization_msgs::msg::Marker delete_marker;
     delete_marker.header.frame_id = robot_frame_;
     delete_marker.action = visualization_msgs::msg::Marker::DELETEALL;
     delete_marker_array.markers.push_back(delete_marker);
     traj_visualizer_pub_->publish(delete_marker_array);
+
+    /*Publish and visualize new marker*/
+    visualization_msgs::msg::MarkerArray traj_with_footprint;
+    int marker_id{0};
     for (auto state : traj)
     {
-        footprint_ptr_->move_footprint(state.x_, state.y_);
-        traj_with_footprint.markers.push_back(footprint_ptr_->generate_footprint_marker(robot_frame_));
+        footprint_ptr_->move_footprint(state.x_, state.y_, state.yaw_);
+        traj_with_footprint.markers.push_back(footprint_ptr_->generate_footprint_marker(robot_frame_, marker_id));
+        ++marker_id;
     }
     traj_visualizer_pub_->publish(traj_with_footprint);
 }

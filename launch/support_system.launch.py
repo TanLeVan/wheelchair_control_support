@@ -25,7 +25,7 @@ def generate_launch_description():
     service_command = [
         'ros2', 'service', 'call', '/whill/set_speed_profile_srv', 'ros2_whill_interfaces/SetSpeedProfile',
         "{s1: 4, fm1: " + str(whill_max_linear_speed) + ", fa1: " + str(whill_max_acceleration) + ", fd1: " + str(whill_max_deceleration) +
-        ", rm1: " + str(whill_min_linear_speed) + ", ra1: " + str(whill_max_deceleration) + ", rd1: " + str(whill_max_acceleration) +
+        ", rm1: " + str(whill_min_linear_speed) + ", ra1: " + str(whill_max_acceleration) + ", rd1: " + str(whill_max_deceleration) +
         ", tm1: " + str(whill_max_yaw_rate) + ", ta1: " + str(whill_max_yaw_acceleration) + ", td1: " + str(whill_max_yaw_acceleration) + "}"
     ]
     print(service_command)

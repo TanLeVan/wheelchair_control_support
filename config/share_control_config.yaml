@@ -8,7 +8,7 @@ share_control_node:
     linear_velocity_sample_size: 5
     yaw_rate_sample_size: 10
     
-    max_linear_vel: 1.        # max linear velocity in x direction (0.3-1.6)(m/s) 
+    max_linear_vel: 0.3      # max linear velocity in x direction (0.3-1.6)(m/s) 
     min_linear_vel: -0.3       # min linear velocity. 
                                # Can be negative in case of backward movement . (-0.3 - -0.8)(m/s)
                                # (Maximum backward vel)

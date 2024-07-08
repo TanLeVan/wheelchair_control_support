@@ -29,21 +29,20 @@ public:
         return (hypot((x - center_x_), (y-center_y_)) <= radius_);
     }
 
-    void move_footprint(const double x, const double y) override
+    void move_footprint(const double x, const double y, const double ) override
     {
         center_x_ = x;
         center_y_ = y;
+        
     }
     
-    visualization_msgs::msg::Marker generate_footprint_marker(std::string frame_id) override
+    visualization_msgs::msg::Marker generate_footprint_marker(std::string frame_id, int marker_id) override
     {
-        static int id{0};
         auto marker = visualization_msgs::msg::Marker();
         marker.header.frame_id = frame_id;
         marker.header.stamp = clock_->now();
         marker.ns = "circle";
-        marker.id = id;
-        ++id;
+        marker.id = marker_id;
         marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
         marker.action = visualization_msgs::msg::Marker::ADD;
         // Circle properties
