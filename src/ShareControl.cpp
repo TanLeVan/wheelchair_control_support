@@ -60,6 +60,7 @@ ShareControl::ShareControl()
     joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/controller/joy", 1);
     obs_list_pub_ = this->create_publisher<geometry_msgs::msg::PoseArray>("/obstacle_list", 10);
     traj_visualizer_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/trajectory_visualization", 10);
+    user_traj_visualizer_pub = this->create_publisher<visualization_msgs::msg::Marker>("/user_trajectory_visualization", 1);
 
     /*Run main_process in loop*/
     timer_ = this->create_wall_timer(std::chrono::duration<double>(period_), std::bind(&ShareControl::main_process, this));
@@ -248,6 +249,29 @@ void ShareControl::trajectory_visualization(const std::vector<State> &traj)
         ++marker_id;
     }
     traj_visualizer_pub_->publish(traj_with_footprint);
+}
+
+void ShareControl::user_trajectory_visualization(const std::vector<State> &traj)
+{
+    visualization_msgs::msg::Marker traj_marker;
+    traj_marker.header.frame_id = robot_frame_;
+    traj_marker.header.stamp = joystick_.header.stamp; //Stamp same as input joystick
+    traj_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    for (auto state : traj)
+    {
+        geometry_msgs::msg::Point p;
+        p.x = state.x_;
+        p.y = state.y_;
+        traj_marker.points.push_back(p);
+    }
+    traj_marker.action = visualization_msgs::msg::Marker::ADD;
+    traj_marker.id = 1000;
+    traj_marker.scale.x = 0.1;
+    traj_marker.color.r = 0.0;
+    traj_marker.color.g = 1.0;
+    traj_marker.color.b = 0.0;
+    traj_marker.color.a = 1.0;
+    user_traj_visualizer_pub->publish(traj_marker);
 }
 
 ShareControl::Window ShareControl::cal_dynamic_window()

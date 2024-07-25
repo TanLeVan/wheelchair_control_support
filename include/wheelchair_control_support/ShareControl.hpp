@@ -110,6 +110,12 @@ public:
     void trajectory_visualization(const std::vector<State> &traj);
 
     /**
+     * User input trajectory visualization
+     * This function draw trajectory as a line , without footprint
+     */
+    void user_trajectory_visualization(const std::vector<State> &traj);
+
+    /**
      * Calculate the dynamic window from the current velocity
      * **/
     Window cal_dynamic_window(void);
@@ -142,6 +148,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr obs_list_pub_; // For visualizing obstacle
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr traj_visualizer_pub_; 
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr  user_traj_visualizer_pub
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
 
