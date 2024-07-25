@@ -351,6 +351,8 @@ void ShareControl::main_process()
             trajectory_visualization(best_traj);
             std::cout << "Alternative velocity done" << std::endl;
         }
+        user_trajectory_visualization(joy_traj);
+        //Control with virtual joystick control
         joy_pub_->publish(calculate_joy_from_velocity(cmd_vel_));
         //vel_pub_->publish(cmd_vel_);
         is_scan_updated_ = false;
