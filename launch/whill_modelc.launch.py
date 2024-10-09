@@ -1,3 +1,5 @@
+# Launching Whill model cr with 2 LIDAR specified in modelc_with_lidar.urdf
+
 import os
 from launch import LaunchDescription
 from launch_ros.actions import Node

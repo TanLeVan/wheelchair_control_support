@@ -1,3 +1,8 @@
+/**
+ * Testing footprint visualization functionality for wheelchair
+ * Author: Le Van Tan
+ * * */
+
 #include "rclcpp/rclcpp.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "wheelchair_control_support/AbstractFootprint.hpp"

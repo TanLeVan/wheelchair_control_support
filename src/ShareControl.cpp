@@ -44,7 +44,7 @@ ShareControl::ShareControl()
     whill_dynamic_.max_acceleration_ = this->get_parameter("max_acceleration").as_double();
     whill_dynamic_.max_deceleration_ = this->get_parameter("max_decceleration").as_double();
 
-    footprint_ptr_ = std::make_unique<RectangularFootprint>(0.6,1);  //Width = 0.7 and length = 1. Because the x-direction is forward
+    footprint_ptr_ = std::make_unique<RectangularFootprint>(0.7,1);  //Width = 0.7 and length = 1. Because the x-direction is forward
 
     /*Initializing tf listener*/
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -256,7 +256,15 @@ void ShareControl::user_trajectory_visualization(const std::vector<State> &traj)
     visualization_msgs::msg::Marker traj_marker;
     traj_marker.header.frame_id = robot_frame_;
     traj_marker.header.stamp = joystick_.header.stamp; //Stamp same as input joystick
+    traj_marker.ns = "user_desired_traj";
     traj_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    traj_marker.action = visualization_msgs::msg::Marker::ADD;
+    traj_marker.id = 1000;
+    traj_marker.scale.x = 0.05;
+    traj_marker.color.r = 0.0;
+    traj_marker.color.g = 1.0;
+    traj_marker.color.b = 0.0;
+    traj_marker.color.a = 1.0;
     for (auto state : traj)
     {
         geometry_msgs::msg::Point p;
@@ -264,13 +272,6 @@ void ShareControl::user_trajectory_visualization(const std::vector<State> &traj)
         p.y = state.y_;
         traj_marker.points.push_back(p);
     }
-    traj_marker.action = visualization_msgs::msg::Marker::ADD;
-    traj_marker.id = 1000;
-    traj_marker.scale.x = 0.1;
-    traj_marker.color.r = 0.0;
-    traj_marker.color.g = 1.0;
-    traj_marker.color.b = 0.0;
-    traj_marker.color.a = 1.0;
     user_traj_visualizer_pub->publish(traj_marker);
 }
 
@@ -322,9 +323,12 @@ void ShareControl::main_process()
         reset_command_vel();
         geometry_msgs::msg::Twist joy_vel_ = calculate_velocity_from_joy();
         std::vector<State> joy_traj = generate_trajectory(joy_vel_.linear.x, joy_vel_.angular.z);
+
+        user_trajectory_visualization(joy_traj);
         if (!check_for_colllision(joy_traj))
         {
             cmd_vel_ = joy_vel_;
+
             trajectory_visualization(joy_traj);
         }
         else 
@@ -351,7 +355,7 @@ void ShareControl::main_process()
             trajectory_visualization(best_traj);
             std::cout << "Alternative velocity done" << std::endl;
         }
-        user_trajectory_visualization(joy_traj);
+
         //Control with virtual joystick control
         joy_pub_->publish(calculate_joy_from_velocity(cmd_vel_));
         //vel_pub_->publish(cmd_vel_);
