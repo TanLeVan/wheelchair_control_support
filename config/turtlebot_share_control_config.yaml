@@ -1,3 +1,4 @@
+# Config file for turtle bot gazebo simulation
 share_control_node:
   ros__parameters:
     predict_time:  3.          #double
@@ -18,7 +19,7 @@ share_control_node:
     max_yaw_acceleration: 2.5  # maximum yaw rate acceleration in both clockwise and counter clockwise (rad/ss)
     rectangle_footprint:  # Specify detail about rectangular footprint
       use: true  
-      height: 1
-      width: 0.7
+      height: 0.3
+      width: 0.3
     footprint_radius: 0.8 # In case do not use rectangular footprint, circular footprint is used by default. This parameter regulate the radius 
                           # of circular footprint       

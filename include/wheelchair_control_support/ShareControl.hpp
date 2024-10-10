@@ -144,7 +144,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_; //Sensor QoS should be use
     rclcpp::Subscription<nav_msgs::msg::Odometry >::SharedPtr odom_subscriber_; //Sensor QoS should be use
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_subscriber_; //Sensor QoS should be use
-    //rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr obs_list_pub_; // For visualizing obstacle
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr traj_visualizer_pub_; 
@@ -171,7 +171,6 @@ private:
     double period_{0.5};                        // Period of one loop of execution. (1/Frequency)
     int linear_vel_sample_size_{5};              // How many discrete linear vel point within dynamic window will be considered
     int yaw_rate_sample_size_{10};                // How many discrete yaw rate point within dynamic window will be considered
-
     rclcpp::TimerBase::SharedPtr timer_;
 };
 

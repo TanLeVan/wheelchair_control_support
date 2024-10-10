@@ -29,6 +29,10 @@ ShareControl::ShareControl()
     this->declare_parameter("period", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("linear_velocity_sample_size", rclcpp::PARAMETER_INTEGER);
     this->declare_parameter("yaw_rate_sample_size", rclcpp::PARAMETER_INTEGER);
+    this->declare_parameter("rectangle_footprint.use", rclcpp::PARAMETER_BOOL);
+    this->declare_parameter("rectangle_footprint.height", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("rectangle_footprint.width", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("footprint_radius", rclcpp::PARAMETER_DOUBLE);
 
     predict_time_           = this->get_parameter("predict_time").as_double();
     predict_timestep_       = this->get_parameter("predict_timestep").as_double();
@@ -43,9 +47,20 @@ ShareControl::ShareControl()
     whill_dynamic_.max_yaw_acceleration_ = this->get_parameter("max_yaw_acceleration").as_double();
     whill_dynamic_.max_acceleration_ = this->get_parameter("max_acceleration").as_double();
     whill_dynamic_.max_deceleration_ = this->get_parameter("max_decceleration").as_double();
-
-    footprint_ptr_ = std::make_unique<RectangularFootprint>(0.7,1);  //Width = 0.7 and length = 1. Because the x-direction is forward
-
+    {
+        bool use_rectangle_footprint =this->get_parameter("rectangle_footprint.use").as_bool();
+        double rectangle_footprint_height = this->get_parameter("rectangle_footprint.height").as_double();
+        double rectangle_footprint_width = this->get_parameter("rectangle_footprint.width").as_double();
+        double circle_footprint_radius = this->get_parameter("footprint_radius").as_double();
+        if (use_rectangle_footprint)
+        {
+            footprint_ptr_ = std::make_unique<RectangularFootprint>(rectangle_footprint_width,rectangle_footprint_height);  //Width = 0.7 and length = 1. Because the x-direction is forward
+        }
+        else
+        {
+            footprint_ptr_ = std::make_unique<CircularFootprint>(circle_footprint_radius);
+        }
+    }
     /*Initializing tf listener*/
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -56,7 +71,7 @@ ShareControl::ShareControl()
                                                                           std::bind(&ShareControl::odom_callback, this, std::placeholders::_1));
     joy_subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>("/whill/states/joy", rclcpp::SensorDataQoS(),
                                                                        std::bind(&ShareControl::joystick_callback, this, std::placeholders::_1));
-    //vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/whill/controller/cmd_vel", 1);
+    vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/whill/controller/cmd_vel", 1);
     joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/controller/joy", 1);
     obs_list_pub_ = this->create_publisher<geometry_msgs::msg::PoseArray>("/obstacle_list", 10);
     traj_visualizer_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/trajectory_visualization", 10);
@@ -358,7 +373,7 @@ void ShareControl::main_process()
 
         //Control with virtual joystick control
         joy_pub_->publish(calculate_joy_from_velocity(cmd_vel_));
-        //vel_pub_->publish(cmd_vel_);
+        vel_pub_->publish(cmd_vel_);
         is_scan_updated_ = false;
         is_odom_updated_ = false;
         is_joystick_updated_ = false;

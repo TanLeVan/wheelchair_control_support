@@ -36,3 +36,20 @@ To run autonomous obstacle avoidance
 ```bash
 ros2 launch wheelchair_control_support support_system.launch.py
 ```
+
+Changing the configuration in:
+./config/share_control_config.yaml
+
+# Demostration
+Demonstration with turtlebot3 in Gazebo:
+```
+ros2 launch wheelchair_control_support turtlebot.launch.py
+```
+Configuration for turtlebot is in:
+./config/turtlebot_share_control_config.yaml
+
+You need to have a controller to be able to use it
+
+Requirement package:
+- joy:https://index.ros.org/p/joy/ 
+- turtlebot3_gazebo

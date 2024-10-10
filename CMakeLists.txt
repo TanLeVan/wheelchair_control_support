@@ -66,6 +66,9 @@ ament_target_dependencies(odometry_listener rclcpp nav_msgs)
 add_executable(velocity_by_joystick_control_node src/vel_joy_exchange.cpp)
 ament_target_dependencies(velocity_by_joystick_control_node rclcpp sensor_msgs geometry_msgs)
 
+add_executable(test_find_gap src/test_find_gap.cpp)
+ament_target_dependencies(test_find_gap rclcpp sensor_msgs geometry_msgs)
+
 # Installing  
 
 ament_python_install_package(${PROJECT_NAME})
@@ -79,6 +82,7 @@ install(
     joy_control
     odometry_listener
     velocity_by_joystick_control_node
+    test_find_gap
   DESTINATION lib/${PROJECT_NAME}
 )
 
