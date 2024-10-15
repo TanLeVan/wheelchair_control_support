@@ -16,6 +16,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 # Adding executatble
 add_executable(simple_velocity_publisher src/simple_velocity_publisher.cpp)
@@ -67,7 +68,7 @@ add_executable(velocity_by_joystick_control_node src/vel_joy_exchange.cpp)
 ament_target_dependencies(velocity_by_joystick_control_node rclcpp sensor_msgs geometry_msgs)
 
 add_executable(test_find_gap src/test_find_gap.cpp)
-ament_target_dependencies(test_find_gap rclcpp sensor_msgs geometry_msgs)
+ament_target_dependencies(test_find_gap rclcpp sensor_msgs geometry_msgs visualization_msgs)
 
 # Installing  
 
