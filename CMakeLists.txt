@@ -22,7 +22,7 @@ find_package(visualization_msgs REQUIRED)
 add_executable(simple_velocity_publisher src/simple_velocity_publisher.cpp)
 ament_target_dependencies(simple_velocity_publisher rclcpp geometry_msgs)
 
-add_executable(share_control_node src/ShareControl.cpp)
+add_executable(share_control_node src/share_control_node.cpp)
 ament_target_dependencies(share_control_node 
   rclcpp 
   geometry_msgs
