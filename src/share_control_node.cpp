@@ -66,7 +66,8 @@ ShareControl::ShareControl()
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     /*Initializing subscriber and publisher*/
-    scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan", rclcpp::SensorDataQoS(),                                                                         std::bind(&ShareControl::laser_scan_callback, this, std::placeholders::_1));
+    scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan", rclcpp::SensorDataQoS(),                                                                         
+                                                                        std::bind(&ShareControl::laser_scan_callback, this, std::placeholders::_1));
     odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>("/whill/odom", rclcpp::SensorDataQoS(),
                                                                           std::bind(&ShareControl::odom_callback, this, std::placeholders::_1));
     joy_subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>("/whill/states/joy", rclcpp::SensorDataQoS(),

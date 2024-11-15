@@ -17,6 +17,9 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(visualization_msgs REQUIRED)
+# Add Eigen as an external dependency
+find_package(Eigen3 REQUIRED)
+
 
 # Adding executatble
 add_executable(simple_velocity_publisher src/simple_velocity_publisher.cpp)
@@ -70,6 +73,20 @@ ament_target_dependencies(velocity_by_joystick_control_node rclcpp sensor_msgs g
 add_executable(test_find_gap src/test_find_gap.cpp)
 ament_target_dependencies(test_find_gap rclcpp sensor_msgs geometry_msgs visualization_msgs)
 
+
+add_executable(test_egocircle_map src/test_egocircle_map.cpp)
+ament_target_dependencies(test_egocircle_map 
+  rclcpp 
+  sensor_msgs 
+  geometry_msgs 
+  visualization_msgs
+  nav_msgs
+  Eigen3
+)
+target_include_directories(test_egocircle_map PUBLIC
+  ./include
+)
+
 # Installing  
 
 ament_python_install_package(${PROJECT_NAME})
@@ -84,6 +101,7 @@ install(
     odometry_listener
     velocity_by_joystick_control_node
     test_find_gap
+    test_egocircle_map
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -99,6 +117,7 @@ install(DIRECTORY
 	model
   DESTINATION share/${PROJECT_NAME}
 )
+
 
 
 

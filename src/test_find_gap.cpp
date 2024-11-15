@@ -5,7 +5,7 @@
 #include <geometry_msgs/msg/point.hpp>
 #include <functional>
 #include <utility> //for std::par
-#include<cmath>
+#include <cmath>
 #include <tuple>
 #include <set>
 
@@ -15,7 +15,7 @@ public:
     FindGap() : Node("laser_scan_subscriber")
     {
         subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            "scan", 10, std::bind(&FindGap::scan_callback, this, std::placeholders::_1));
+            "scan", rclcpp::SensorDataQoS(), std::bind(&FindGap::scan_callback, this, std::placeholders::_1));
         gap_visualize_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
             "gap_visualize", 10
         );
@@ -77,183 +77,207 @@ private:
 
         // Compute the clockwise distance: 2*PI - counter-clockwise distance
         double cw_distance = 2 * M_PI - ccw_distance;
-
+        if(abs(ccw_distance) < 1e-6) //Comparing ccw_distance == 0 with relative epsilon
+        {
+            cw_distance = 0.;
+        }
         return cw_distance;  // The result is the clockwise distance in [0, 2*PI)
     }
 
     std::vector<Gap> find_gaps(sensor_msgs::msg::LaserScan& scan, const float robot_radius)
     {
         std::vector<Gap> gaps;
-        const float max_range = scan.range_max;
-        float angle = scan.angle_min;
-
-        for (auto& range : scan.ranges) {
-            if (std::isinf(range)) {
-                range = scan.range_max;
-            }
-        }
 
         //Forward loop
+        float angle = scan.angle_min;
         for(std::size_t i = 0; i < scan.ranges.size()-1;)
         {
-
             float current_range = scan.ranges[i];
             float next_range = scan.ranges[i + 1];
-
-            // If type 1 rising discontinuity
-            if(next_range - current_range > 2*robot_radius && next_range < max_range)
+            if(next_range - current_range > 2*robot_radius && !std::isinf(next_range))
             {
-                std::cout << "Gap start at " << angle*180/M_PI << std::endl;
                 Gap gap;
                 gap.first_side= std::make_tuple(current_range*cos(angle), current_range*sin(angle), normalize_angle(angle));
-
-                //Assume the second side is the next immediate obstacle point
-                gap.second_side = std::make_tuple(next_range*cos(angle + scan.angle_increment), next_range*sin(angle + scan.angle_increment), normalize_angle(angle + scan.angle_increment));
-
-                std::size_t j = i+1;
-                double new_angle = angle + scan.angle_increment; //angle of point j
+                std::size_t j = i;
+                double j_angle = angle; //angle of point j
+                bool update_gap{false};
+                double gap_min_dist = 1e+9;
                 //If distance from the first side of the gap to this obs point is less than the gap's current width and angular distance travelled is less than pi
                 // /Update the second side
-                while (angular_distance_ccw(std::get<2>(gap.first_side), new_angle) <= M_PI)
+                while (angular_distance_ccw(std::get<2>(gap.first_side), j_angle) <= M_PI)
                 {
-                    if(sqrt(square(get_wrapped(scan.ranges,j)*cos(new_angle) - std::get<0>(gap.first_side)) + square(get_wrapped(scan.ranges,j)*sin(new_angle) - std::get<1>(gap.first_side))) < gap.calculate_width())
-                    {
-                        std::cout << "Gap end at " << new_angle*180/M_PI << std::endl;
-                        gap.second_side = std::make_tuple(get_wrapped(scan.ranges,j)*cos(new_angle), get_wrapped(scan.ranges,j)*sin(new_angle), normalize_angle(new_angle));
-                        angle = new_angle; //Angle of point i = angle of point j
-                        i = j; 
-                    }
                     j++;
-                    new_angle += scan.angle_increment;
+                    j_angle += scan.angle_increment;
+                    if(sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.first_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.first_side))) < gap_min_dist)
+                    {
+                        gap_min_dist = sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.first_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.first_side)));
+                        gap.second_side = std::make_tuple(get_wrapped(scan.ranges,j)*cos(j_angle), get_wrapped(scan.ranges,j)*sin(j_angle), normalize_angle(j_angle));
+                        angle = j_angle-scan.angle_increment; //Angle of point i = angle of point j
+                        i = j-1; 
+                        update_gap = true;
+                    }
                 }
-                gap.type = 1;
-                gaps.push_back(gap);
+                if(update_gap)
+                {
+                    gap.type = 1;
+                    gaps.push_back(gap);
+                }
             }
 
             //If type 2 rising discontinuity
-            else if(next_range >=  max_range && current_range < max_range)
+            else if(std::isinf(next_range) && !std::isinf(current_range))
             {
                 Gap gap;
                 gap.first_side= std::make_tuple(current_range*cos(angle), current_range*sin(angle), normalize_angle(angle));
-                std::cout << "Gap start at " << angle*180/M_PI << std::endl;
                 //Find descending discontinuity
                 double j_angle = angle; // Angle of scan point j
-                // if (i + 1 >= scan.ranges.size() || i + 2 >= scan.ranges.size()) {
-                //     break; // Prevent out-of-bounds access
-                // }
+                double gap_min_dis = 1.e+9;
+                bool update_gap{false};
                 std::size_t j = i;
-                while(true)
+                while(angular_distance_ccw(std::get<2>(gap.first_side), j_angle) <= M_PI)
                 {
                     j++;
                     j_angle = j_angle + scan.angle_increment;
-                    if(/*((get_wrapped(scan.ranges,j) - get_wrapped(scan.ranges,j+1)) > 2*robot_radius)||*/ (get_wrapped(scan.ranges,j+1) < scan.range_max && get_wrapped(scan.ranges,j) >= scan.range_max))
+                    if(!std::isinf(get_wrapped(scan.ranges,j)))
                     {
-                        std::cout << "range of second end    "<<get_wrapped(scan.ranges,j+1)<< std::endl;
-                        std::cout << "angle of second end    "<<angle+scan.angle_increment<< std::endl << "\n";
-                        angle = j_angle; //Angle of point i = angle of point j + 1
-                        i = j; //Continue searching from the next point
-                        gap.second_side = std::make_tuple(get_wrapped(scan.ranges,j+1)*cos(angle+scan.angle_increment), 
-                                                            get_wrapped(scan.ranges,j+1)*sin(angle+scan.angle_increment),
-                                                            normalize_angle(angle + scan.angle_increment));//Second side is scan point j + 1
-                        break;
+                        if(sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.first_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.first_side))) < gap_min_dis)
+                        {
+                            gap_min_dis = sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.first_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.first_side)));
+                            gap.second_side = std::make_tuple(get_wrapped(scan.ranges,j)*cos(j_angle), 
+                                                            get_wrapped(scan.ranges,j)*sin(j_angle),
+                                                            normalize_angle(j_angle));
+                            update_gap = true;
+                            angle = j_angle - scan.angle_increment; //Angle of point i = angle of point j
+                            i = j-1; 
+                        }
                     }
                 }
-                gap.type = 2;
-                gaps.push_back(gap);
+                if(update_gap)
+                {
+                    gap.type = 2;
+                    gaps.push_back(gap);
+                }
             }
-            std::cout << angle*180/M_PI << std::endl;
             angle += scan.angle_increment;
             i++;
         } 
 
+
         //Inverse loop search
-        angle = scan.angle_max;
-        for(int i = scan.ranges.size()-1; i > 1;)
-        {
+        // angle = scan.angle_max;
+        // for(int i = scan.ranges.size()-1; i > 1;)
+        // {
 
-            float current_range = scan.ranges[i];
-            float next_range = scan.ranges[i-1];
+        //     float current_range = scan.ranges[i];
+        //     float next_range = scan.ranges[i-1];
 
-            // If type 1 rising discontinuity
-            if(next_range - current_range > 2*robot_radius && next_range < max_range)
-            {
-                Gap gap;
-                gap.second_side= std::make_tuple(current_range*cos(angle), current_range*sin(angle), normalize_angle(angle));
+        //     // If type 1 rising discontinuity
+        //     if(next_range - current_range > 2*robot_radius && !std::isinf(next_range))
+        //     {
+        //         Gap gap;
+        //         gap.second_side= std::make_tuple(current_range*cos(angle), current_range*sin(angle), normalize_angle(angle));
 
-                //Assume the second side is the next immediate obstacle point
-                gap.first_side = std::make_tuple(next_range*cos(angle - scan.angle_increment), next_range*sin(angle - scan.angle_increment), normalize_angle(angle - scan.angle_increment));
+        //         //Assume the second side is the next immediate obstacle point
+        //         // gap.first_side = std::make_tuple(next_range*cos(angle - scan.angle_increment), next_range*sin(angle - scan.angle_increment), normalize_angle(angle - scan.angle_increment));
 
-                int j = i-1;
-                double new_angle = angle - scan.angle_increment; //angle of point j
-                //If distance from the first side of the gap to this obs point is less than the gap's current width and angular distance travelled is less than pi
-                // Update the second side
-                while (angular_distance_cw(std::get<2>(gap.first_side), new_angle) <= M_PI)
-                {
-                    if(sqrt(square(get_wrapped(scan.ranges,j)*cos(new_angle) - std::get<0>(gap.first_side)) + square(get_wrapped(scan.ranges,j)*sin(new_angle) - std::get<1>(gap.first_side))) < gap.calculate_width())
-                    {
-                        gap.first_side = std::make_tuple(get_wrapped(scan.ranges,j)*cos(new_angle), get_wrapped(scan.ranges,j)*sin(new_angle), normalize_angle(new_angle));
-                        angle = new_angle ; //Angle of point i = angle of point j
-                        i = j; 
-                    }
-                    j--;
-                    new_angle -= scan.angle_increment;
-                }
-                gap.type = 1;
-                gaps.push_back(gap);
-            }
+        //         int j = i;
+        //         double j_angle = angle; //angle of point j
+        //         bool update_gap{false};
+        //         double gap_min_dist = 1e+9;
+        //         //If distance from the first side of the gap to this obs point is less than the gap's current width and angular distance travelled is less than pi
+        //         // Update the second side
+        //         while (angular_distance_cw(std::get<2>(gap.second_side), j_angle) <= M_PI)
+        //         {
+        //             j--;
+        //             j_angle -= scan.angle_increment;
+        //             if(sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.second_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.second_side))) < gap_min_dist)
+        //             {
+        //                 gap_min_dist = sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.second_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.second_side)));
+        //                 gap.first_side = std::make_tuple(get_wrapped(scan.ranges,j)*cos(j_angle), get_wrapped(scan.ranges,j)*sin(j_angle), normalize_angle(j_angle));
+        //                 angle = j_angle + scan.angle_increment; //Angle of point i = angle of point j
+        //                 i = j + 1; 
+        //                 update_gap = true;
+        //             }
+        //         }
+        //         if(update_gap)
+        //         {
+        //             gap.type = 1;
+        //             gaps.push_back(gap);
+        //         }
+        //     }
 
-            //If type 2 rising discontinuity
-            else if(next_range >=  max_range && current_range < max_range)
-            {
-                Gap gap;
-                gap.second_side= std::make_tuple(current_range*cos(angle), current_range*sin(angle), normalize_angle(angle));
+        //     //If type 2 rising discontinuity
+        //     else if(std::isinf(next_range) && !std::isinf(current_range))
+        //     {
+        //         Gap gap;
+        //         gap.second_side= std::make_tuple(current_range*cos(angle), current_range*sin(angle), normalize_angle(angle));
 
-                //Find descending discontinuity
-                double j_angle = angle; // Angle of scan point j
-
-                int j = i;
-                while(true)
-                {
-                    j--;
-                    j_angle = j_angle - scan.angle_increment;
-                    if(((get_wrapped(scan.ranges,j) - get_wrapped(scan.ranges,j-1)) > 2*robot_radius) || (get_wrapped(scan.ranges,j-1) < scan.range_max && get_wrapped(scan.ranges,j) >= scan.range_max))
-                    {
-                        angle = j_angle; //Angle of point i = angle of point j - 1
-                        i = j; //Continue searching from the next point
-                        gap.first_side = std::make_tuple(get_wrapped(scan.ranges,j-1)*cos(angle-scan.angle_increment), 
-                                                            get_wrapped(scan.ranges,j-1)*sin(angle-scan.angle_increment),
-                                                            normalize_angle(angle - scan.angle_increment));//Second side is scan point j - 1
-                        break;
-                    }
-                }
-                gap.type = 2;
-                gaps.push_back(gap);
-            }
-            angle -= scan.angle_increment;
-            i--;
-        } 
+        //         //Find descending discontinuity
+        //         double j_angle = angle; // Angle of scan point j
+        //         double gap_min_dis = 1.e+9;
+        //         bool update_gap{false};
+        //         int j = i;
+        //         while(angular_distance_cw(std::get<2>(gap.second_side), j_angle) <= M_PI)
+        //         {
+        //             j--;
+        //             j_angle = j_angle - scan.angle_increment;
+        //             if(!std::isinf(get_wrapped(scan.ranges,j)))
+        //             {
+        //                 if(sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.second_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.second_side))) < gap_min_dis)
+        //                 {
+        //                     gap_min_dis = sqrt(square(get_wrapped(scan.ranges,j)*cos(j_angle) - std::get<0>(gap.second_side)) + square(get_wrapped(scan.ranges,j)*sin(j_angle) - std::get<1>(gap.second_side)));
+        //                     gap.first_side = std::make_tuple(get_wrapped(scan.ranges,j)*cos(j_angle), 
+        //                                                     get_wrapped(scan.ranges,j)*sin(j_angle),
+        //                                                     normalize_angle(j_angle));
+        //                     update_gap = true;
+        //                     angle = j_angle + scan.angle_increment; //Angle of point i = angle of point j
+        //                     i = j+ 1;                                
+        //                 }
+        //             }
+        //         }
+        //         if(update_gap)
+        //         {
+        //             gap.type = 2;
+        //             gaps.push_back(gap);
+        //         }
+        //     }
+        //     angle -= scan.angle_increment;
+        //     i--;
+        // } 
+        // std::cout << "Gap before elmination" << std::endl;
+        // for (std::size_t i = 0; i < gaps.size(); ++i) {
+        //     std::cout << "Gap " << i  << " type: " << gaps[i].type <<". First side angle  " << std::get<2>(gaps[i].first_side) << " . Second side: " <<std::get<2>(gaps[i].second_side)  << std::endl;
+        // }
 
         /*
         Gap elimination:
         Store the indexes to be deleted in an array then delete the coressponding index
         */
-        std::set<std::size_t> index_to_be_deleted; 
+        std::set<std::size_t, std::greater<std::size_t>> index_to_be_deleted;  //Sorting to descending order
         for (std::size_t i = 0; i < gaps.size(); ++i) {
             for (std::size_t j = i + 1; j < gaps.size(); ++j) {
-                // If angle of first point of gap i is larger than angle of first point of gap j
-                // and angle of second point of gap i is smaller than angle of second point of gap j
-                if(std::get<2>(gaps[i].first_side) >= std::get<2>(gaps[j].first_side) && std::get<2>(gaps[i].second_side) <= std::get<2>(gaps[j].second_side))
+                // If angle of first point of gap i is inside the gap j
+                // and angle of second point of gap i is inside j
+                // then eliminate i 
+                std::cout << "(i, j) = " << i << ", "<< j << std::endl;
+                if(std::isgreaterequal(std::get<2>(gaps[i].first_side),std::get<2>(gaps[j].first_side))  &&   std::islessequal(std::get<2>(gaps[i].first_side), std::get<2>(gaps[j].second_side))  
+                && std::isgreaterequal(std::get<2>(gaps[i].second_side),std::get<2>(gaps[j].first_side)) &&   std::islessequal(std::get<2>(gaps[i].second_side), std::get<2>(gaps[j].second_side)))
                 {
                     //Elminate gap[i]
                     index_to_be_deleted.insert(i);
+                    std::cout << "delete i"<< std::endl;
                 }
-                else if(std::get<2>(gaps[i].first_side) <= std::get<2>(gaps[j].first_side) && std::get<2>(gaps[i].second_side) >= std::get<2>(gaps[j].second_side))
+                else if(std::isgreaterequal(std::get<2>(gaps[j].first_side),std::get<2>(gaps[i].first_side))  &&   std::islessequal(std::get<2>(gaps[j].first_side), std::get<2>(gaps[i].second_side))  
+                     && std::isgreaterequal(std::get<2>(gaps[j].second_side),std::get<2>(gaps[i].first_side)) &&   std::islessequal(std::get<2>(gaps[j].second_side), std::get<2>(gaps[i].second_side)))
                 {
                     //Elminate gap[j]
                     index_to_be_deleted.insert(j);
+                     std::cout << "delete j"<< std::endl;
                 }
             }
         }
+
+
         //Deleting gap at index without preserving order of gaps
         if(!index_to_be_deleted.empty())
         {
@@ -262,8 +286,7 @@ private:
                 std::cout << index << std::endl;
                 if(!gaps.empty())
                 {
-                    gaps[index] = gaps.back();
-                    gaps.pop_back();
+                    gaps.erase(gaps.begin() + index);
                 }
             }
         }
@@ -367,8 +390,9 @@ private:
         this->clear_markers();
         this->visualize_gaps(gaps);
         RCLCPP_INFO(this->get_logger(), "Publishing %zu markers", gaps.size());
+        std::cout << "Gap after elmination" << std::endl;
         for (std::size_t i = 0; i < gaps.size(); ++i) {
-            std::cout << "Gap " << i + 1 << " type: " << gaps[i].type << std::endl;
+            std::cout << "Gap " << i  << " type: " << gaps[i].type <<". First side angle  " << std::get<2>(gaps[i].first_side) << " . Second side: " <<std::get<2>(gaps[i].second_side)  << std::endl;
         }
     }
 
