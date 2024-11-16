@@ -6,7 +6,7 @@
 #include <vector>
 #include <cmath>
 #include <stdexcept>
-
+#include <cmath>
 // Constants
 constexpr double PI = 3.141592653589793;
 
@@ -19,12 +19,14 @@ struct Cell {
     double angular_resolution;
     double radial_resolution;
 
+    int angular_index;
+    int radial_index;
     //Default constructor
     // Cell()
     //     : r(0.0), theta(0.0), value(0.0), angular_resolution(0.0), radial_resolution(0.0) {}
 
-    Cell(double r, double theta, double value, double angular_res, double radial_res)
-        : r(r), theta(theta), value(value), angular_resolution(angular_res), radial_resolution(radial_res) {}
+    Cell(double r, double theta, double value, double angular_res, double radial_res, int angular_index, int radial_index)
+        : r(r), theta(theta), value(value), angular_resolution(angular_res), radial_resolution(radial_res), angular_index(angular_index), radial_index(radial_index) {}
 };
 
 // EgocircleOccupancyMap class
@@ -42,7 +44,7 @@ public:
             map[i].reserve(num_radial_segments); // Reserve space to avoid multiple reallocations
             for (int j = 0; j < num_radial_segments; ++j) {
                 double r = (j + 0.5) * radial_resolution;
-                map[i].emplace_back(r, theta, 0.0, angular_resolution, radial_resolution);
+                map[i].emplace_back(r, theta, 0.5, angular_resolution, radial_resolution, i, j);
         }
     }
     }
@@ -65,8 +67,30 @@ public:
         throw std::out_of_range("Requested cell is out of map bounds");
     }
 
-    void update_cell_value(Cell& cell, double new_value) {
-        cell.value = new_value; // Apply probabilistic update here (e.g., Bayesian update)
+    /*
+        Log odd Probability of a cell given a point in lidar scan data lies in the cell
+        Can be replace with better model
+    */
+    double inverse_lidar_model(bool scan_point_inside_cell)
+    {
+        if (scan_point_inside_cell)
+            return 2.19722; // log(0.9/(1-0.9))
+        return -2.19722; //log(0.1/(1-0.1))
+    } 
+    /*
+        Update value of a cell based on old value and available scan data
+        (Probabilistic robotic)
+        @arg decay_factor (from 0->1)
+    */
+    void update_cell_value(Cell& cell, bool scan_point_inside_cell) {
+        double decay_factor{0.7};
+        // if (decay_factor < 0 || decay_factor >1)
+        // {
+        //     std::cout << "Decay factor MUST be within 0 and 1 \n";
+        //     decay_factor = 1;
+        // }
+        double l_it = decay_factor*log(cell.value/(1-cell.value)) + inverse_lidar_model(scan_point_inside_cell); // l_it = l_i{t-1} +  inverse_sensor_model - l_0
+        cell.value = exp(l_it)/(1+exp(l_it));
     }
 
 
@@ -79,14 +103,25 @@ public:
             if (std::isfinite(range) && range >= 0.0) {
                 try {
                     Cell& cell = get_corresponding_cell(range, angle);
-                    update_cell_value(cell, 1.0); // Update with appropriate probability
-                    std::cout << "Cell Updated at angle: " <<  angle << " and range: " <<range << std::endl;
+                    //Update all cells in angular segment of found cell until found cell
+                    for(int j = 0; j < cell.radial_index; j++)
+                    {
+                        update_cell_value(map[cell.angular_index][j],  false);
+                        std::cout << "False Cell Updated at angle: " <<  angle << " and range: " <<map[cell.angular_index][j].r <<" with value " << map[cell.angular_index][j].value << std::endl;
+                    }
+                    update_cell_value(cell,  true);
+                    std::cout << "True Cell Updated at angle: " <<  angle << " and range: " <<range <<" with value " << cell.value << std::endl;
                 } catch (const std::out_of_range&) {
                     int angular_index = static_cast<int>(angle / (2 * PI / num_angular_segments));
                     if (angular_index >= 0 && angular_index < num_angular_segments) {
                         Cell& furthest_cell = map[angular_index].back(); // Furthest cell in the segment
-                        update_cell_value(furthest_cell, 1.0);
-                        std::cout << "Furthest Cell Updated at angle: " << angle << " (Out of Range)" << std::endl;
+                        for(int j = 0; j < furthest_cell.radial_index; j++)
+                        {
+                            update_cell_value(map[furthest_cell.angular_index][j], false);
+                            std::cout << "False furthest Cell Updated at angle: " <<  angle << " and range: " <<map[furthest_cell.angular_index][j].r <<" with value " << map[furthest_cell.angular_index][j].value << std::endl;
+                        }
+                        update_cell_value(furthest_cell,  true);
+                        std::cout << "True furthest Cell Updated at angle: " <<  angle << " and range: " <<range <<" with value " << furthest_cell.value << std::endl;
                     }
                 }
             }
@@ -116,27 +151,72 @@ public:
     }
 
     void transform_map(const Eigen::Matrix3d& transform) {
+        // Prepare a 2D std::vector to hold Cartesian coordinates of all cells
+        std::vector<std::vector<double>> points(num_angular_segments * num_radial_segments, std::vector<double>(3));
+
+        // Fill the 2D vector with coordinates in Cartesian form
+        int index = 0;
+        for (int i = 0; i < num_angular_segments; ++i) {
+            for (int j = 0; j < num_radial_segments; ++j) {
+                const Cell& cell = map[i][j];
+                points[index][0] = cell.r * std::cos(cell.theta); // x-coordinate
+                points[index][1] = cell.r * std::sin(cell.theta); // y-coordinate
+                points[index][2] = 1.0;                           // Homogeneous coordinate
+                ++index;
+            }
+        }
+
+        // Flatten the 2D vector to a 1D vector for Eigen::Map
+        std::vector<double> flattened;
+        flattened.reserve(num_angular_segments * num_radial_segments * 3);
+        for (const auto& row : points) {
+            flattened.insert(flattened.end(), row.begin(), row.end());
+        }
+
+        // Map the flattened vector to an Eigen matrix (3 x N) where N is the total number of cells
+        Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> points_matrix(
+            flattened.data(), 3, num_angular_segments * num_radial_segments);
+
+        // Apply the SE(2) transformation
+        Eigen::MatrixXd transformed_points = transform * points_matrix;
+
+        // Create a new map
         EgocircleOccupancyMap new_map(num_angular_segments, num_radial_segments, sensing_range);
 
+        // Process transformed points and map them to the new grid
+        index = 0;
         for (int i = 0; i < num_angular_segments; ++i) {
             for (int j = 0; j < num_radial_segments; ++j) {
                 const Cell& old_cell = map[i][j];
 
-                // Transform the point using the new function
-                auto [r_new, theta_new] = transform_point_polar({old_cell.r, old_cell.theta}, transform);
+                // Convert transformed Cartesian coordinates back to polar
+                double x_new = transformed_points(0, index);
+                double y_new = transformed_points(1, index);
+                double r_new = std::sqrt(x_new * x_new + y_new * y_new);
+                double theta_new = std::atan2(y_new, x_new);
+                if (theta_new < 0) theta_new += 2 * PI; // Normalize theta to [0, 2π]
 
                 try {
-                    // Use polar coordinates to find the corresponding cell
+                    // Map the transformed polar coordinates to the new grid
                     Cell& new_cell = new_map.get_corresponding_cell(r_new, theta_new);
-                    new_cell.value = old_cell.value; // Transfer the occupancy value
+                    new_cell.value = old_cell.value; // Transfer occupancy value
                 } catch (const std::out_of_range&) {
-                    // Ignore cells that are outside the bounds of the new map
+                    // If out of range, assign value to the furthest cell in the same angular segment
+                    int angular_index = static_cast<int>(theta_new / (2 * PI / num_angular_segments));
+                    if (angular_index >= 0 && angular_index < num_angular_segments) {
+                        Cell& furthest_cell = new_map.map[angular_index].back(); // Get the furthest cell
+                        furthest_cell.value = 1.0; // Assign occupancy value
+                    }
                 }
+
+                ++index;
             }
         }
 
+        // Update the current map with the new map
         *this = std::move(new_map);
     }
+
 
     void visualize_map(rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr& publisher) {
     visualization_msgs::msg::MarkerArray marker_array;
@@ -180,7 +260,6 @@ public:
             marker.color.b = 0.0;
 
             // Set marker lifetime (e.g., 1 second)
-            marker.lifetime = rclcpp::Duration::from_seconds(1.0);
 
             marker_array.markers.push_back(marker);
         }

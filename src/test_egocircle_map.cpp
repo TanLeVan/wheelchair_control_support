@@ -7,7 +7,7 @@
 
 class EgocircleNode : public rclcpp::Node {
 public:
-    EgocircleNode() : Node("egocircle_node"), map_(360, 50, 2.), has_previous_odom_(false) {
+    EgocircleNode() : Node("egocircle_node"), map_(270, 30, 2.), has_previous_odom_(false) {
         // Subscriber for LaserScan messages
         scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/scan",
@@ -16,11 +16,11 @@ public:
         );
 
         // Subscriber for Odometry messages
-        odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/odom",
-            rclcpp::SensorDataQoS(),
-            std::bind(&EgocircleNode::odom_callback, this, std::placeholders::_1)
-        );
+        // odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        //     "/odom",
+        //     rclcpp::SensorDataQoS(),
+        //     std::bind(&EgocircleNode::odom_callback, this, std::placeholders::_1)
+        // );
 
         // Publisher for visualizing the occupancy map
         map_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/egocircle_map", 10);
