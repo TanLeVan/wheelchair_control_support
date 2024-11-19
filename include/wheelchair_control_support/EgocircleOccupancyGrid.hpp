@@ -44,9 +44,14 @@ public:
             map[i].reserve(num_radial_segments); // Reserve space to avoid multiple reallocations
             for (int j = 0; j < num_radial_segments; ++j) {
                 double r = (j + 0.5) * radial_resolution;
-                map[i].emplace_back(r, theta, 0.5, angular_resolution, radial_resolution, i, j);
+                // if (j == 50 && i == 0)
+                // {
+                //     map[i].emplace_back(r, theta, 1., angular_resolution, radial_resolution, i, j);
+                // }
+                // else
+                    map[i].emplace_back(r, theta, 0.5, angular_resolution, radial_resolution, i, j);
+            }
         }
-    }
     }
 
     Cell& get_corresponding_cell(double r, double theta) {
@@ -83,20 +88,20 @@ public:
         @arg decay_factor (from 0->1)
     */
     void update_cell_value(Cell& cell, bool scan_point_inside_cell) {
-        double decay_factor{0.7};
+        double decay_factor{0.9};
         // if (decay_factor < 0 || decay_factor >1)
         // {
         //     std::cout << "Decay factor MUST be within 0 and 1 \n";
         //     decay_factor = 1;
         // }
-        double l_it = decay_factor*log(cell.value/(1-cell.value)) + inverse_lidar_model(scan_point_inside_cell); // l_it = l_i{t-1} +  inverse_sensor_model - l_0
+        double l_it = decay_factor*log(cell.value/(1.01-cell.value)) + inverse_lidar_model(scan_point_inside_cell); // l_it = l_i{t-1} +  inverse_sensor_model - l_0
         cell.value = exp(l_it)/(1+exp(l_it));
     }
 
 
     void update_map_with_lidar_scan(const sensor_msgs::msg::LaserScan& scan) {
         for (size_t i = 0; i < scan.ranges.size(); ++i) {
-            double range = scan.ranges[i];
+            double range = std::isfinite(scan.ranges[i])? scan.ranges[i] : sensing_range;
             double angle = scan.angle_min + i * scan.angle_increment;
 
             // Ignore invalid range values (e.g., inf or NaN)
@@ -129,54 +134,42 @@ public:
     }
 
 
-    std::pair<double, double> transform_point_polar(const std::pair<double, double>& polar_point, const Eigen::Matrix3d& transform) {
-        // Extract polar coordinates
-        double r = polar_point.first;
-        double theta = polar_point.second;
+    // std::pair<double, double> transform_point_polar(const std::pair<double, double>& polar_point, const Eigen::Matrix3d& transform) {
+    //     // Extract polar coordinates
+    //     double r = polar_point.first;
+    //     double theta = polar_point.second;
 
-        // Convert polar to Cartesian coordinates
-        double x = r * std::cos(theta);
-        double y = r * std::sin(theta);
+    //     // Convert polar to Cartesian coordinates
+    //     double x = r * std::cos(theta);
+    //     double y = r * std::sin(theta);
 
-        // Apply the SE(2) transformation
-        Eigen::Vector3d cartesian_point(x, y, 1.0);
-        Eigen::Vector3d transformed_point = transform * cartesian_point;
+    //     // Apply the SE(2) transformation
+    //     Eigen::Vector3d cartesian_point(x, y, 1.0);
+    //     Eigen::Vector3d transformed_point = transform * cartesian_point;
 
-        // Convert back to polar coordinates
-        double r_transformed = std::sqrt(transformed_point.x() * transformed_point.x() + transformed_point.y() * transformed_point.y());
-        double theta_transformed = std::atan2(transformed_point.y(), transformed_point.x());
-        if (theta_transformed < 0) theta_transformed += 2 * PI; // Normalize θ to [0, 2π]
+    //     // Convert back to polar coordinates
+    //     double r_transformed = std::sqrt(transformed_point.x() * transformed_point.x() + transformed_point.y() * transformed_point.y());
+    //     double theta_transformed = std::atan2(transformed_point.y(), transformed_point.x());
+    //     if (theta_transformed < 0) theta_transformed += 2 * PI; // Normalize θ to [0, 2π]
 
-        return {r_transformed, theta_transformed};
-    }
+    //     return {r_transformed, theta_transformed};
+    // }
 
     void transform_map(const Eigen::Matrix3d& transform) {
-        // Prepare a 2D std::vector to hold Cartesian coordinates of all cells
-        std::vector<std::vector<double>> points(num_angular_segments * num_radial_segments, std::vector<double>(3));
+        // Prepare a 2D Eigen matrix to hold Cartesian coordinates of all cells
+        Eigen::MatrixXd points_matrix(3, num_angular_segments * num_radial_segments);
 
-        // Fill the 2D vector with coordinates in Cartesian form
+        // Fill the Eigen matrix with coordinates in Cartesian form
         int index = 0;
         for (int i = 0; i < num_angular_segments; ++i) {
             for (int j = 0; j < num_radial_segments; ++j) {
                 const Cell& cell = map[i][j];
-                points[index][0] = cell.r * std::cos(cell.theta); // x-coordinate
-                points[index][1] = cell.r * std::sin(cell.theta); // y-coordinate
-                points[index][2] = 1.0;                           // Homogeneous coordinate
+                points_matrix(0, index) = cell.r * std::cos(cell.theta); // x-coordinate
+                points_matrix(1, index) = cell.r * std::sin(cell.theta); // y-coordinate
+                points_matrix(2, index) = 1.0;                           // Homogeneous coordinate
                 ++index;
             }
         }
-
-        // Flatten the 2D vector to a 1D vector for Eigen::Map
-        std::vector<double> flattened;
-        flattened.reserve(num_angular_segments * num_radial_segments * 3);
-        for (const auto& row : points) {
-            flattened.insert(flattened.end(), row.begin(), row.end());
-        }
-
-        // Map the flattened vector to an Eigen matrix (3 x N) where N is the total number of cells
-        Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> points_matrix(
-            flattened.data(), 3, num_angular_segments * num_radial_segments);
-
         // Apply the SE(2) transformation
         Eigen::MatrixXd transformed_points = transform * points_matrix;
 
@@ -202,11 +195,11 @@ public:
                     new_cell.value = old_cell.value; // Transfer occupancy value
                 } catch (const std::out_of_range&) {
                     // If out of range, assign value to the furthest cell in the same angular segment
-                    int angular_index = static_cast<int>(theta_new / (2 * PI / num_angular_segments));
-                    if (angular_index >= 0 && angular_index < num_angular_segments) {
-                        Cell& furthest_cell = new_map.map[angular_index].back(); // Get the furthest cell
-                        furthest_cell.value = 1.0; // Assign occupancy value
-                    }
+                    // int angular_index = static_cast<int>(theta_new / (2 * PI / num_angular_segments));
+                    // if (angular_index >= 0 && angular_index < num_angular_segments) {
+                    //     Cell& furthest_cell = new_map.map[angular_index].back(); // Get the furthest cell
+                    //     furthest_cell.value = 1.0; // Assign occupancy value
+                    // }
                 }
 
                 ++index;
@@ -219,52 +212,64 @@ public:
 
 
     void visualize_map(rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr& publisher) {
-    visualization_msgs::msg::MarkerArray marker_array;
+        static int previous_marker_count = 0;
+        visualization_msgs::msg::MarkerArray delete_marker_array, marker_array;
+        // Step 1: Clear old markers
+        // for (int id = 0; id < previous_marker_count; ++id) {
+        //     visualization_msgs::msg::Marker delete_marker;
+        //     delete_marker.header.frame_id = "base_footprint";
+        //     delete_marker.header.stamp = rclcpp::Clock().now();
+        //     delete_marker.ns = "egocircle";
+        //     delete_marker.id = id;
+        //     delete_marker.action = visualization_msgs::msg::Marker::DELETE;
 
-    for (int i = 0; i < num_angular_segments; ++i) {
-        const Cell* closest_occupied_cell = nullptr;
+        //     delete_marker_array.markers.push_back(delete_marker);
+        // }
+        // publisher->publish(delete_marker_array);
 
-        // Find the first occupied cell in the current angular segment
-        for (const auto& cell : map[i]) {
-            if (cell.value > 0.5) {  // Threshold for occupancy
-                closest_occupied_cell = &cell;
-                break; // Exit loop once the first occupied cell is found
+        for (int i = 0; i < num_angular_segments; ++i) {
+            const Cell* closest_occupied_cell = nullptr;
+
+            // Find the first occupied cell in the current angular segment
+            for (int j = 0; j < num_radial_segments; j++) {
+                if (map[i][j].value > 0.5) {  // Threshold for occupancy
+                    closest_occupied_cell = &map[i][j];
+                    break; // Exit loop once the first occupied cell is found
+                }
+            }
+
+            // If no occupied cell is found, use the furthest cell
+            if (!closest_occupied_cell && !map[i].empty()) {
+                closest_occupied_cell = &map[i].back();
+            }
+
+            // Visualize the determined cell
+            if (closest_occupied_cell) {
+                visualization_msgs::msg::Marker marker;
+                marker.header.frame_id = "base_footprint";
+                marker.header.stamp = rclcpp::Clock().now();
+                marker.ns = "egocircle";
+                marker.id = marker_array.markers.size();
+                marker.type = visualization_msgs::msg::Marker::CUBE;
+                marker.action = visualization_msgs::msg::Marker::ADD;
+
+                marker.pose.position.x = closest_occupied_cell->r * std::cos(closest_occupied_cell->theta);
+                marker.pose.position.y = closest_occupied_cell->r * std::sin(closest_occupied_cell->theta);
+                marker.pose.position.z = 0;
+                marker.scale.x = closest_occupied_cell->angular_resolution;
+                marker.scale.y = closest_occupied_cell->angular_resolution;
+                marker.scale.z = 0.1;
+
+                marker.color.a = 1.0; // Fully opaque
+                marker.color.r = 0.0;
+                marker.color.g = 1.0;
+                marker.color.b = 0.0;
+
+                // Set marker lifetime (e.g., 1 second)
+                marker_array.markers.push_back(marker);
             }
         }
-
-        // If no occupied cell is found, use the furthest cell
-        if (!closest_occupied_cell && !map[i].empty()) {
-            closest_occupied_cell = &map[i].back();
-        }
-
-        // Visualize the determined cell
-        if (closest_occupied_cell) {
-            visualization_msgs::msg::Marker marker;
-            marker.header.frame_id = "base_scan";
-            marker.header.stamp = rclcpp::Clock().now();
-            marker.ns = "egocircle";
-            marker.id = marker_array.markers.size();
-            marker.type = visualization_msgs::msg::Marker::CUBE;
-            marker.action = visualization_msgs::msg::Marker::ADD;
-
-            marker.pose.position.x = closest_occupied_cell->r * std::cos(closest_occupied_cell->theta);
-            marker.pose.position.y = closest_occupied_cell->r * std::sin(closest_occupied_cell->theta);
-            marker.pose.position.z = 0;
-            marker.scale.x = closest_occupied_cell->radial_resolution;
-            marker.scale.y = closest_occupied_cell->radial_resolution;
-            marker.scale.z = 0.1;
-
-            marker.color.a = 1.0; // Fully opaque
-            marker.color.r = 0.0;
-            marker.color.g = 1.0;
-            marker.color.b = 0.0;
-
-            // Set marker lifetime (e.g., 1 second)
-
-            marker_array.markers.push_back(marker);
-        }
-    }
-
+        previous_marker_count = marker_array.markers.size();
         publisher->publish(marker_array);
     }
 
