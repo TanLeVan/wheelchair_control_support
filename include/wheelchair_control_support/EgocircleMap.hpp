@@ -22,6 +22,11 @@ public:
         r = r_;
         value = value_;
     }
+
+    bool operator==(const PolarPoint& point){
+        return r==point.r && theta == point.theta;
+    }
+
 private:
     /*Map angle from (-inf, inf) to [0, 2pi) */
     double map_angle_(double theta)
@@ -71,7 +76,7 @@ public:
 class EgocircleOccupancyMap
 {
 public:
-    EgocircleOccupancyMap(int num_angular_segments, int num_radial_segments, double sensing_range)
+    EgocircleOccupancyMap(int num_angular_segments, int num_radial_segments, double sensing_range, bool )
     : num_angular_segments{num_angular_segments}, num_radial_segments{num_radial_segments}, sensing_range{sensing_range}
     {
         double angular_resolution = 2 * M_PI / num_angular_segments;
@@ -320,11 +325,26 @@ public:
         Cell& new_cell2 = new_map.get_corresponding_cell(new_map.ob_point2);
         // std::cout << "Position of new cell 2 is angle " << new_cell2.angular_index << " and radial " << new_cell2.radial_index << std::endl;
         Cell& new_cell3 = new_map.get_corresponding_cell(new_map.ob_point3);
-        if(new_cell2.angular_index == new_cell.angular_index || new_cell3.angular_index == new_cell.angular_index)
-        {
-            std::cout << "2 obs point collide" << std::endl;
-        }
+        // if(new_cell2.angular_index == new_cell.angular_index || new_cell3.angular_index == new_cell.angular_index)
+        // {
+        //     std::cout << "2 obs point collide" << std::endl;
+        // }
         *this = std::move(new_map);
+        std::cout << num_of_no_obs_cell() << std::endl;
+    }
+
+    int num_of_no_obs_cell()
+    {
+        static int num{0};
+        for (int i = 0; i < num_angular_segments; i++)
+        {
+            for(int j = 0;j<num_radial_segments;j++){
+                if(map[i][j].mid_point == map[i][j].virtual_ob){
+                    num +=1;
+                }
+            }
+        }
+        return num;
     }
 
     PolarPoint SE2_transform_polar(PolarPoint obs, const Eigen::Matrix3d& transform)
