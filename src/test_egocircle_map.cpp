@@ -8,13 +8,13 @@
 
 class EgocircleNode : public rclcpp::Node {
 public:
-    EgocircleNode() : Node("egocircle_node"), map_(30, 30, 2., true), has_previous_odom_(false) {
+    EgocircleNode() : Node("egocircle_node"), map_(180, 10, 3., true), has_previous_odom_(false) {
         // Subscriber for LaserScan messages
-        // scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-        //     "/scan",
-        //     rclcpp::SensorDataQoS(),
-        //     std::bind(&EgocircleNode::laser_scan_callback, this, std::placeholders::_1)
-        // );
+        scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+            "/scan",
+            rclcpp::SensorDataQoS(),
+            std::bind(&EgocircleNode::laser_scan_callback, this, std::placeholders::_1)
+        );
 
         // Subscriber for Odometry messages
         odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
@@ -29,16 +29,16 @@ public:
         // Timer for periodic visualization
         timer_ = this->create_wall_timer(
             std::chrono::milliseconds(50),
-            [this]() { map_.visualize_map(map_publisher_); }
+            [this]() { map_.visualize_map(0.5, map_publisher_); }
         );
 
     }
 
 private:
-    // void laser_scan_callback(const sensor_msgs::msg::LaserScan& msg) {
-    //     //RCLCPP_INFO(this->get_logger(), "Processing LaserScan with %zu ranges", msg.ranges.size());
-    //     map_.update_map_with_lidar_scan(msg);
-    // }
+    void laser_scan_callback(const sensor_msgs::msg::LaserScan& msg) {
+        //RCLCPP_INFO(this->get_logger(), "Processing LaserScan with %zu ranges", msg.ranges.size());
+        map_.update_map_with_lidar_scan(msg);
+    }
 
     void odom_callback(const nav_msgs::msg::Odometry& msg) {
         //RCLCPP_INFO(this->get_logger(), "Processing Odometry message");
