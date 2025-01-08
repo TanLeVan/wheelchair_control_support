@@ -87,6 +87,12 @@ target_include_directories(test_egocircle_map PUBLIC
   ./include
 )
 
+add_executable(scan_filter src/scan_filter.cpp)
+ament_target_dependencies(scan_filter rclcpp sensor_msgs)
+target_link_libraries(scan_filter ${PCL_LIBRARIES})
+
+
+
 # Installing  
 
 ament_python_install_package(${PROJECT_NAME})
@@ -102,12 +108,15 @@ install(
     velocity_by_joystick_control_node
     test_find_gap
     test_egocircle_map
+    scan_filter
   DESTINATION lib/${PROJECT_NAME}
 )
 
 # Install Python executables
 install(PROGRAMS
 	script/joy_visualizer.py
+  script/test_scan_filter_py.py
+  script/scan_filter.py
 	DESTINATION lib/${PROJECT_NAME}
 	)
 

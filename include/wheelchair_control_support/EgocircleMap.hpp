@@ -49,7 +49,7 @@ public:
     double radial_resolution;
     int angular_index; // Angular position of the cell in map
     int radial_index;  // Radial position of the cell in map
-    static constexpr int max_virtual_obstacles{5}; // Maximum threshold for virtual obstacles
+    static constexpr int max_virtual_obstacles{2}; // Maximum threshold for virtual obstacles
 
     Cell(PolarPoint mid_point, double angular_resolution, double radial_resolution, int angular_index, int radial_index)
         : mid_point{mid_point}, angular_resolution{angular_resolution}, radial_resolution{radial_resolution},
@@ -150,28 +150,37 @@ public:
         }
     }
 private:
+    // void aggregate_virtual_obstacles()
+    // {
+    //     // Calculate the weighted average position and maximum value
+    //     double sum_r = 0.0;
+    //     double sum_theta = 0.0;
+    //     double max_value = 0.0;
+
+    //     for (const auto &obstacle : virtual_obstacles)
+    //     {
+    //         sum_r += obstacle.r;
+    //         sum_theta += obstacle.theta;
+    //         max_value = std::max(max_value, obstacle.value);
+    //     }
+
+    //     double avg_r = sum_r / virtual_obstacles.size();
+    //     double avg_theta = sum_theta / virtual_obstacles.size();
+
+    //     // Clear the existing obstacles
+    //     virtual_obstacles.clear();
+
+    //     // Add the new aggregated obstacle
+    //     virtual_obstacles.emplace_back(avg_r, avg_theta, max_value);
+    // }
+
     void aggregate_virtual_obstacles()
     {
-        // Calculate the weighted average position and maximum value
-        double sum_r = 0.0;
-        double sum_theta = 0.0;
-        double max_value = 0.0;
-
-        for (const auto &obstacle : virtual_obstacles)
-        {
-            sum_r += obstacle.r;
-            sum_theta += obstacle.theta;
-            max_value = std::max(max_value, obstacle.value);
+        auto minIt = std::min_element(virtual_obstacles.begin(), virtual_obstacles.end(), [](const PolarPoint& a, const PolarPoint& b) {
+                                        return a.value < b.value;});
+        if (minIt != virtual_obstacles.end()) {
+            virtual_obstacles.erase(minIt);
         }
-
-        double avg_r = sum_r / virtual_obstacles.size();
-        double avg_theta = sum_theta / virtual_obstacles.size();
-
-        // Clear the existing obstacles
-        virtual_obstacles.clear();
-
-        // Add the new aggregated obstacle
-        virtual_obstacles.emplace_back(avg_r, avg_theta, max_value);
     }
 
 };
@@ -199,24 +208,24 @@ public:
                 //Out-of-range cell is intialized with a virtual obstacle of value 1 to represent occupied cell
                 if (j == num_radial_segments)
                 {
-                    map[i].emplace_back(PolarPoint(r, theta, 0.5), angular_resolution, radial_resolution, i, j);
+                    map[i].emplace_back(PolarPoint(r, theta, 0.0), angular_resolution, radial_resolution, i, j);
                     map[i][j].update_virtual_obstacles(PolarPoint(r, theta, 1.0));
                 }
 
-                map[i].emplace_back(PolarPoint(r, theta, 0.5), angular_resolution, radial_resolution, i, j);
+                map[i].emplace_back(PolarPoint(r, theta, 0.0), angular_resolution, radial_resolution, i, j);
             
                 // Ensure virtual point if the flag is set
                 // This flag is set when the map is first initialized
                 if (ensure_virtual_point)
                 {
-                    // if ((i ==0 && j == 25) || (i == 20 && j == 30) || (i == 90 && j == 45) )
+                    // if ((i ==0 && j == 30) || (i == 20 && j == 30) || (i == 90 && j == 40) )
                     // {
                     //     map[i][j].update_virtual_obstacles(PolarPoint(r, theta, 1.0));
                     // }
                     // else
-                    // {
+                    //{
                         map[i][j].ensure_virtual_point();
-                    // }
+                    //}
                 }
             }
         }
@@ -319,7 +328,7 @@ public:
         @arg decay_factor (from 0->1)
     */
     void update_cell_value(Cell& cell, bool scan_point_inside_cell) {
-        double decay_factor{1.0};
+        double decay_factor{0.8};
         // if (decay_factor < 0 || decay_factor >1)
         // {
         //     std::cout << "Decay factor MUST be within 0 and 1 \n";
@@ -332,32 +341,68 @@ public:
         }
     }
 
+    // void update_map_with_lidar_scan(const sensor_msgs::msg::LaserScan& scan) {
+    //     for (size_t i = 0; i < scan.ranges.size(); ++i) {
+    //         double range = std::isfinite(scan.ranges[i])? scan.ranges[i] : sensing_range;
+    //         double angle = scan.angle_min + i * scan.angle_increment;
+    //         // Ignore invalid range values (e.g., inf or NaN)
+    //         if (std::isfinite(range) && range >= 0.0) {
+    //             try {
+    //                 Cell& cell = get_corresponding_cell(PolarPoint(range, angle));
+    //                 //Update all cells in angular segment of found cell until found cell
+    //                 for(int j = 0; j < cell.radial_index; j++)
+    //                 {
+    //                     update_cell_value(map[cell.angular_index][j],  false);
+    //                 }
+    //                 update_cell_value(cell,  true);
+    //             } catch (const std::out_of_range&) {
+    //                 int angular_index = static_cast<int>(angle / (2 * M_PI / num_angular_segments));
+    //                 if (angular_index >= 0 && angular_index < num_angular_segments) {
+    //                     Cell& furthest_cell = map[angular_index].back(); // Furthest cell in the segment
+    //                     for(int j = 0; j < furthest_cell.radial_index; j++)
+    //                     {
+    //                         update_cell_value(map[furthest_cell.angular_index][j], false);
+    //                     }
+    //                     update_cell_value(furthest_cell,  true);
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
     void update_map_with_lidar_scan(const sensor_msgs::msg::LaserScan& scan) {
-        for (size_t i = 0; i < scan.ranges.size(); ++i) {
-            double range = std::isfinite(scan.ranges[i])? scan.ranges[i] : sensing_range;
-            double angle = scan.angle_min + i * scan.angle_increment;
-            // Ignore invalid range values (e.g., inf or NaN)
-            if (std::isfinite(range) && range >= 0.0) {
-                try {
-                    Cell& cell = get_corresponding_cell(PolarPoint(range, angle));
-                    //Update all cells in angular segment of found cell until found cell
-                    for(int j = 0; j < cell.radial_index; j++)
-                    {
-                        update_cell_value(map[cell.angular_index][j],  false);
-                    }
-                    update_cell_value(cell,  true);
-                } catch (const std::out_of_range&) {
-                    int angular_index = static_cast<int>(angle / (2 * M_PI / num_angular_segments));
-                    if (angular_index >= 0 && angular_index < num_angular_segments) {
-                        Cell& furthest_cell = map[angular_index].back(); // Furthest cell in the segment
-                        for(int j = 0; j < furthest_cell.radial_index; j++)
-                        {
-                            update_cell_value(map[furthest_cell.angular_index][j], false);
-                        }
-                        update_cell_value(furthest_cell,  true);
-                    }
+        for (int i=0; i< num_angular_segments; i++)
+        {
+            double angular_lower_range = map[i][0].mid_point.theta - map[i][0].angular_resolution / 2;
+            double angular_upper_range = map[i][0].mid_point.theta + map[i][0].angular_resolution / 2;
+
+            //Find index of scan point that is within angle range
+            int lower_scan_index = ceil(angular_lower_range/scan.angle_increment);
+            int upper_scan_index = floor(angular_upper_range/scan.angle_increment);
+
+            //For point inside angle range, find point with smallest range
+            double smallest_range = sensing_range;
+            for(std::size_t i = lower_scan_index; i <= upper_scan_index;++i)
+            {
+                double range = std::isfinite(scan.ranges[i])? scan.ranges[i] : sensing_range;
+                if(smallest_range >range){
+                    smallest_range = range;
                 }
             }
+            // Update cell that closest point belong to
+            int cell_range_index = floor(smallest_range/(sensing_range/num_radial_segments));
+            for(int j=0;j<num_radial_segments;j++){
+                if(j==cell_range_index){
+                    update_cell_value(map[i][j], true);
+                }
+                else{
+                    update_cell_value(map[i][j], false);
+                }
+            }
+            // for (int j = 0; j<cell_range_index;j++){
+            //     update_cell_value(map[i][j], false);
+            // }
+            // update_cell_value(map[i][cell_range_index], true);
         }
     }
 

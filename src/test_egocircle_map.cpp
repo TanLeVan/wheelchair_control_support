@@ -8,7 +8,7 @@
 
 class EgocircleNode : public rclcpp::Node {
 public:
-    EgocircleNode() : Node("egocircle_node"), map_(180, 10, 3., true), has_previous_odom_(false) {
+    EgocircleNode() : Node("egocircle_node"), map_(90, 30, 3., true), has_previous_odom_(false) {
         // Subscriber for LaserScan messages
         scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "/scan",
