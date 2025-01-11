@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 import numpy as np
@@ -18,8 +19,15 @@ class LidarProcessingNode(Node):
             self.scan_callback,
             10
         )
+
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            depth=10  # Queue size for the publisher
+)
         self.filtered_publisher = self.create_publisher(
-            LaserScan, '/filtered_scan', 10
+            LaserScan, '/filtered_scan', 
+            qos_profile
         )
         self.marker_publisher = self.create_publisher(
             MarkerArray, '/visualization_marker_array', 10
@@ -37,12 +45,17 @@ class LidarProcessingNode(Node):
         # Convert LaserScan to Cartesian Points
         angles = np.arange(msg.angle_min, msg.angle_max, msg.angle_increment)
         distances = np.array(msg.ranges)
-        valid_indices = np.isfinite(distances) and distances <= self.max_range
+        valid_indices = np.isfinite(distances) 
         valid_angles = angles[valid_indices]
         valid_distances = distances[valid_indices]
         x = valid_distances * np.cos(valid_angles)
         y = valid_distances * np.sin(valid_angles)
         points = np.column_stack((x, y))
+        
+        # Create a mapping of Cartesian points to indices in the original `distances` array
+        point_to_index_map = {}
+        for idx, (px, py) in enumerate(points):
+            point_to_index_map[(px, py)] = np.where(valid_indices)[0][idx]  # Map point to original index
 
         # Apply DBSCAN
         clustering = DBSCAN(eps=self.dbscan_eps, min_samples=self.dbscan_min_samples).fit(points)
@@ -81,9 +94,25 @@ class LidarProcessingNode(Node):
                     remaining_outliers.append(point)
             outliers = remaining_outliers 
 
-        
         # Visualize clusters, lines, and outliers
         self.visualize_clusters(cluster, filtered_lines, outliers, "base_scan")
+
+        # Create new LidarScan message
+        # Retrieve indices of outliers using the point-to-index map
+        outlier_indices = [point_to_index_map[tuple(point)] for point in outliers]
+        distances[outlier_indices] = np.inf
+        filtered_scan = LaserScan()
+        filtered_scan.header = msg.header  # Preserve the header
+        filtered_scan.header.stamp = self.get_clock().now().to_msg()  # Set the current time
+        filtered_scan.angle_min = msg.angle_min
+        filtered_scan.angle_max = msg.angle_max
+        filtered_scan.angle_increment = msg.angle_increment
+        filtered_scan.time_increment = msg.time_increment
+        filtered_scan.scan_time = msg.scan_time
+        filtered_scan.range_min = msg.range_min
+        filtered_scan.range_max = msg.range_max
+        filtered_scan.ranges = distances.tolist()  # Convert numpy array to list
+        self.filtered_publisher.publish(filtered_scan)
 
     def line_tracking(self, points, Tmax):
         i, j, l = 0, 0, 0
