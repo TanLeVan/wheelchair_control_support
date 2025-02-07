@@ -13,39 +13,44 @@ from geometry_msgs.msg import Point
 class LidarProcessingNode(Node):
     def __init__(self):
         super().__init__('lidar_processing_node')
-        self.subscription = self.create_subscription(
-            LaserScan,
-            '/scan',
-            self.scan_callback,
-            10
-        )
 
         qos_profile = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             durability=QoSDurabilityPolicy.VOLATILE,
-            depth=10  # Queue size for the publisher
-)
+            depth=1  # Queue size for the publisher
+        )
+        self.subscription = self.create_subscription(
+            LaserScan,
+            '/scan',
+            self.scan_callback,
+            qos_profile
+        )
+
         self.filtered_publisher = self.create_publisher(
             LaserScan, '/filtered_scan', 
             qos_profile
         )
         self.marker_publisher = self.create_publisher(
-            MarkerArray, '/visualization_marker_array', 10
+            MarkerArray, '/filterd_scan_visualization', 10
         )
         self.get_logger().info("Lidar Processing Node Started")
 
         # Parameters
         self.max_range = 5 # max range of the lidar. Point with larger range are discarded
-        self.dbscan_eps = 0.12
-        self.dbscan_min_samples = 2
-        self.Tmax = 0.05
-        self.line_point_threshold = 10
+        self.min_range = 0.0
+        self.dbscan_eps = 0.1
+        self.dbscan_min_samples = 3
+        self.Tmax = 0.05 # Distance threshold to classify if point belong to a line or not. If distance from point to line < Tmax then point belong to line
+        self.line_point_threshold = 8  # Line with more than line_point_threshold is considered a line. Less then it is not
+        self.use_line_filter = False
 
     def scan_callback(self, msg):
         # Convert LaserScan to Cartesian Points
+        frame_id = msg.header.frame_id
         angles = np.arange(msg.angle_min, msg.angle_max, msg.angle_increment)
         distances = np.array(msg.ranges)
-        valid_indices = np.isfinite(distances) 
+        out_of_range_indices = np.where((distances > self.max_range) | (distances < self.min_range))[0]#save indices of points that are outside of max range
+        valid_indices = (distances <= self.max_range) & (distances > self.min_range)
         valid_angles = angles[valid_indices]
         valid_distances = distances[valid_indices]
         x = valid_distances * np.cos(valid_angles)
@@ -80,26 +85,29 @@ class LidarProcessingNode(Node):
                 filtered_lines.append((line, label))
 
         # Classify outliers
-        outliers = points[labels == -1]
-        if len(filtered_lines) >0:
-            remaining_outliers = []  
-            for point in outliers:
-                is_inlier = False
-                for line, label in filtered_lines:
-                    if self.point_to_line_distance(point, line) < self.Tmax:
-                        cluster[label] = np.vstack((cluster[label], point))
-                        is_inlier = True
-                        break  # No need to check further lines
-                if not is_inlier:
-                    remaining_outliers.append(point)
-            outliers = remaining_outliers 
+        outliers = points[labels == -1] 
+        # Include outliers that belong to a line in the cluster if use_line_filter = True
+        if (self.use_line_filter):
+            if len(filtered_lines) >0:
+                remaining_outliers = []  
+                for point in outliers:
+                    is_inlier = False
+                    for line, label in filtered_lines:
+                        if self.point_to_line_distance(point, line) < self.Tmax:
+                            cluster[label] = np.vstack((cluster[label], point))
+                            is_inlier = True
+                            break  # No need to check further lines
+                    if not is_inlier:
+                        remaining_outliers.append(point)
+                outliers = remaining_outliers 
 
         # Visualize clusters, lines, and outliers
-        self.visualize_clusters(cluster, filtered_lines, outliers, "base_scan")
+        self.visualize_clusters(cluster, filtered_lines, outliers, frame_id)
 
         # Create new LidarScan message
         # Retrieve indices of outliers using the point-to-index map
         outlier_indices = [point_to_index_map[tuple(point)] for point in outliers]
+        outlier_indices.extend(out_of_range_indices)
         distances[outlier_indices] = np.inf
         filtered_scan = LaserScan()
         filtered_scan.header = msg.header  # Preserve the header
@@ -112,6 +120,7 @@ class LidarProcessingNode(Node):
         filtered_scan.range_min = msg.range_min
         filtered_scan.range_max = msg.range_max
         filtered_scan.ranges = distances.tolist()  # Convert numpy array to list
+        filtered_scan.intensities = msg.intensities
         self.filtered_publisher.publish(filtered_scan)
 
     def line_tracking(self, points, Tmax):

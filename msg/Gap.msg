@@ -1,0 +1,8 @@
+std_msgs/Header header
+float64 confident
+float64 left_point_x
+float64 left_point_y
+float64 middle_point_x
+float64 middle_point_y
+float64 right_point_x
+float64 right_point_y

@@ -8,6 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -16,9 +17,23 @@ find_package(visualization_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
-find_package(visualization_msgs REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(wheelchair_control_support REQUIRED)
 # Add Eigen as an external dependency
 find_package(Eigen3 REQUIRED)
+
+include_directories(include
+  ./include/json/include/
+)
+
+
+# Adding custom message type
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Gap.msg"
+  DEPENDENCIES std_msgs
+)
 
 
 # Adding executatble
@@ -36,6 +51,24 @@ ament_target_dependencies(share_control_node
   tf2
   tf2_ros)
 target_include_directories(share_control_node PUBLIC
+  ./include
+)
+
+add_executable(intended_goal_estimator src/intended_goal_estimator.cpp)
+ament_target_dependencies(intended_goal_estimator
+  rclcpp
+  nav_msgs
+  sensor_msgs
+  message_filters
+  ament_index_cpp
+  wheelchair_control_support
+  visualization_msgs
+  geometry_msgs
+  tf2_geometry_msgs
+  tf2
+  tf2_ros
+)
+target_include_directories(intended_goal_estimator PUBLIC
   ./include
 )
 
@@ -73,6 +106,11 @@ ament_target_dependencies(velocity_by_joystick_control_node rclcpp sensor_msgs g
 add_executable(test_find_gap src/test_find_gap.cpp)
 ament_target_dependencies(test_find_gap rclcpp sensor_msgs geometry_msgs visualization_msgs)
 
+add_executable(test_find_gap2 src/test_find_gap2.cpp)
+ament_target_dependencies(test_find_gap2 rclcpp sensor_msgs geometry_msgs visualization_msgs)
+target_include_directories(test_find_gap2 PUBLIC
+  ./include
+)
 
 add_executable(test_egocircle_map src/test_egocircle_map.cpp)
 ament_target_dependencies(test_egocircle_map 
@@ -95,7 +133,7 @@ target_link_libraries(scan_filter ${PCL_LIBRARIES})
 
 # Installing  
 
-ament_python_install_package(${PROJECT_NAME})
+# ament_python_install_package(${PROJECT_NAME})
 
 install(
   TARGETS 
@@ -109,6 +147,8 @@ install(
     test_find_gap
     test_egocircle_map
     scan_filter
+    test_find_gap2
+    intended_goal_estimator
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -124,6 +164,7 @@ install(DIRECTORY
 	config 
 	launch
 	model
+  data
   DESTINATION share/${PROJECT_NAME}
 )
 
