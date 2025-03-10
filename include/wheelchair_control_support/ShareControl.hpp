@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "wheelchair_control_support/AbstractFootprint.hpp"
+#include "wheelchair_control_support/msg/gap.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
@@ -55,10 +56,10 @@ public:
 
     ShareControl();
     void main_process(void);
-
     void laser_scan_callback(const sensor_msgs::msg::LaserScan &msg);
     void odom_callback(const nav_msgs::msg::Odometry &msg);
     void joystick_callback(const sensor_msgs::msg::Joy &msg);
+    void gap_callback(const wheelchair_control_support::msg::Gap &msg);
 
     /**
      * @brief From scan message, calculate the position of obstacles. Update to obs_lists_
@@ -87,6 +88,16 @@ public:
      * Evaluate the cost of a given trajectory
      * **/
     void evaluate_trajectory(const std::vector<State> &traj);
+
+    /**
+     * Cost function to evaluate a velocity pair
+     */
+    double calculate_vel_pair_cost(const double linear_vel, 
+                            const double yaw_rate, 
+                            const wheelchair_control_support::msg::Gap &gap,
+                            const double linear_vel_user,
+                            const double yaw_rate_user,
+                            const std::vector<State>& traj);
 
     /**
      * Check for collision of trajectory
@@ -144,7 +155,8 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_; //Sensor QoS should be use
     rclcpp::Subscription<nav_msgs::msg::Odometry >::SharedPtr odom_subscriber_; //Sensor QoS should be use
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_subscriber_; //Sensor QoS should be use
-    //rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
+    rclcpp::Subscription<wheelchair_control_support::msg::Gap>::SharedPtr gap_subscriber_;
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr obs_list_pub_; // For visualizing obstacle
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_pub_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr traj_visualizer_pub_; 
@@ -155,11 +167,13 @@ private:
     std::unique_ptr<AbstractFootprint> footprint_ptr_;
     WhillDynamic whill_dynamic_;
     geometry_msgs::msg::PoseArray obs_list_; /*List of observed obstacle*/
+    wheelchair_control_support::msg::Gap observed_gap_; //Observed gap with highest confidence
 
     /*Check if new information from subscriber is receieved*/
     bool is_scan_updated_{false};
     bool is_odom_updated_{false};
     bool is_joystick_updated_{false};
+    bool is_gap_updated_{false};
 
     /*Parameter to change the behavior of the DWA algorithm*/
     std::string robot_frame_{"base_footprint"}; //We consider everything with respect to robot_frame_
@@ -171,7 +185,6 @@ private:
     double period_{0.5};                        // Period of one loop of execution. (1/Frequency)
     int linear_vel_sample_size_{5};              // How many discrete linear vel point within dynamic window will be considered
     int yaw_rate_sample_size_{10};                // How many discrete yaw rate point within dynamic window will be considered
-
     rclcpp::TimerBase::SharedPtr timer_;
 };
 

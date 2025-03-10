@@ -16,3 +16,9 @@ share_control_node:
     max_acceleration: 1.       # max acceleration in both direction (forward backward) ( 0.28  - 1.38m/ss)
     max_decceleration: 2.     # max decceleration in both direction (forward backward) (1.2 - 2.5m/ss)
     max_yaw_acceleration: 2.5  # maximum yaw rate acceleration in both clockwise and counter clockwise (rad/ss)
+    rectangle_footprint:  # Specify detail about rectangular footprint
+      use: true  
+      height: 0.8
+      width: 0.6
+    footprint_radius: 0.8 # In case do not use rectangular footprint, circular footprint is used by default. This parameter regulate the radius 
+                          # of circular footprint       
