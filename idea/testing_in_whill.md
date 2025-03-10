@@ -31,8 +31,10 @@
 Proposed solution to improve cost function.
     [ ] Visualize how the confident level increase and decrease for one gap given a trajectory and input
     [ ] Add something (?) to lower the confidence of gap and account for the case where use do not want to go to gap
-    [x] Use softmin instead of mmin to calculate value funcntion
+    [o] Use softmin instead of mmin to calculate value funcntion
         - Softmin function cause the value function at arbitrary state to be negative, with unfavorable state less negative than favorable state. 
         The expectation is that value function should be positive and this is the case when using hardmin but not soft min.
         - Opt for inverse the cost function
-    [ ]Add more point to be the target goal in the gap instead of just the middle point     
+    [ ]Add more point to be the target goal in the gap instead of just the middle point   
+    [0] Using a  more numerically stable calculation method 
+    [ ] Chaning the cost function. The current cost function and state is not very appropriate considering gap intention

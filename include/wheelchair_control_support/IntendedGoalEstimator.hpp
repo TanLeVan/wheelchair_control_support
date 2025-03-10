@@ -30,11 +30,14 @@ class GapIntentionEstimator : public rclcpp::Node
 
 typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Joy, nav_msgs::msg::Odometry> SyncPolicy;
 public:
+    typedef std::vector<std::vector<std::vector<double>>> tensor3d;
+
     class State
     {
     public:
         double distance_to_goal_;
         double angular_distance_to_goal_;
+        double orientation_of_goal_;
     };
 
     //Class to describe action of the ser
@@ -63,12 +66,12 @@ public:
     /**
      * Read from a csv file, load value function into 2d vector
      */
-    void get_value_function(const std::string& value_function_filename, std::vector<std::vector<double>>& value_function);
+    void get_value_function(const std::string& value_function_filename, tensor3d& value_function);
 
     /**
      * This is just to verify the correctness of get_value_function
      */
-    void save_value_function(const std::string& output_filename, const std::vector<std::vector<double>>& value_function);
+    void save_value_function(const std::string& output_filename, const tensor3d& value_function);
 
     void setup_subscriber(const std::string& joy_topic, const std::string& odom_topic, const std::string& scan_topic);
 
@@ -101,7 +104,7 @@ public:
 
 private:
     //For value function
-    std::vector<std::vector<double>> value_function_; //value_function_[theta_i][d_i]
+    tensor3d value_function_; 
     std::string value_function_filename_;
 
     //Synchronizing joystick and odom message 
@@ -131,12 +134,18 @@ private:
     WhillDynamic whill_dynamic_;
     double confident_threshold_; // Only gap with confident threshold 
 
+
     double delta_t_; //Time step
-    double angle_weight_; //angle weight of cost function
-    double distance_weight_; // distance weight of cost funcion
-    double distance_threshold_; // distance > threshold will have the same contribution to the cost function
-    double zeta_; 
+    //Cost function weight
+    double w_theta_; //angle weight of cost function
+    double w_d_; // distance weight of cost funcion
+    double w_theta_g_;
+    double k_d_;
+    double k_theta_;
+    double k_theta_g_;
+    double distance_threshold_; // distance > threshold will have the same contribution to the cost function 
     double discount_factor_; //gamma in MDP
+
     double max_distance_; //Maximum distance that was considered during the calculation of value function
     double number_of_distance_point_; //Number of distance value after discretization
     double max_abs_angle_distance_; 
@@ -191,8 +200,24 @@ private:
         // Compute the inverse transform
         tf2::Transform tf_inverse = tf_transform.inverse();
 
-        // Convert back to geometry_msgs::TransformStamped
-        inverse_transform.transform = tf2::toMsg(tf_inverse);
+        // Extract translation and rotation
+        tf2::Vector3 inv_translation = tf_inverse.getOrigin();
+        tf2::Quaternion inv_rotation = tf_inverse.getRotation();
+
+        // Assign translation
+        inverse_transform.transform.translation.x = inv_translation.x();
+        inverse_transform.transform.translation.y = inv_translation.y();
+        inverse_transform.transform.translation.z = inv_translation.z();
+
+        // Assign normalized rotation
+        inv_rotation.normalize();
+        inverse_transform.transform.rotation = tf2::toMsg(inv_rotation);
+
+        // Debugging output
+        // RCLCPP_INFO(rclcpp::get_logger("debug"), "Odom->Robot Transform: x=%f, y=%f, z=%f",
+        //             inverse_transform.transform.translation.x,
+        //             inverse_transform.transform.translation.y,
+        //             inverse_transform.transform.translation.z);
 
         return inverse_transform;
     }
@@ -207,7 +232,8 @@ private:
         double mid_point_x{(left.first + right.first)/2};
         double mid_point_y{(left.second + right.second)/2};
         state.distance_to_goal_ = sqrt(mid_point_x*mid_point_x + mid_point_y*mid_point_y);
-        state.angular_distance_to_goal_ = abs(atan2(mid_point_y, mid_point_x));
+        state.angular_distance_to_goal_ = atan2(mid_point_y, mid_point_x);
+        state.orientation_of_goal_ = atan2(left.first - right.first , right.second -left.second); //(atan2(x_l - x_r, y_r- y_l));
         return state;
     }
 
@@ -218,12 +244,12 @@ private:
         /*Forward movement*/
         if (joy_msg.axes[1] >= 0)
         {
-            action.angular_vel_ = joy_msg.axes[1] * whill_dynamic_.max_linear_vel_;
+            action.linear_vel_ = joy_msg.axes[1] * whill_dynamic_.max_linear_vel_;
         }
         //backward movement
         else if (joy_msg.axes[1] < 0)
         {
-            action.angular_vel_ = -joy_msg.axes[1] * whill_dynamic_.min_linear_vel_;
+            action.linear_vel_ = -joy_msg.axes[1] * whill_dynamic_.min_linear_vel_;
         }
 
         //Angular velocity

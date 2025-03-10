@@ -49,7 +49,9 @@ ament_target_dependencies(share_control_node
   visualization_msgs
   tf2_geometry_msgs
   tf2
-  tf2_ros)
+  tf2_ros
+  wheelchair_control_support
+)
 target_include_directories(share_control_node PUBLIC
   ./include
 )

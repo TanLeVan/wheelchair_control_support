@@ -19,7 +19,7 @@ class FindGap
 private:
     const double mk_gap_length_threshold{0.7}; //Threshold for gap length. Gap < threshold will be omitted
     const double mk_gap_angle_threshold{M_PI}; // Gap with arc anngle > threshold will be ommited
-    const double mk_merged_gap_angle_threshold {M_PI/2}; // 
+    const double mk_merged_gap_angle_threshold {2*M_PI/3}; // 
 
 public:
     /**
@@ -253,6 +253,7 @@ public:
 
     visualization_msgs::msg::MarkerArray visualize_gaps(const sensor_msgs::msg::LaserScan &scan,
                                                         const std::vector<Gap> &observed_gap,
+                                                        const double confident_threshold,
                                                         int marker_id_offset = 0)
     {
         visualization_msgs::msg::MarkerArray marker_array;
@@ -273,10 +274,10 @@ public:
             marker.id = id++; // Increment ID for each marker
             marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
             marker.action = visualization_msgs::msg::Marker::ADD;
-            marker.lifetime = rclcpp::Duration::from_seconds(0.1);
+            marker.lifetime = rclcpp::Duration::from_seconds(0.15);
 
             // Set color for the marker (e.g., blue for merged gaps)
-            if (gap.get_confident() == max_confident)
+            if (gap.get_confident() >=  confident_threshold)
             {
                 marker.color.r = 1.0;
                 marker.color.g = 0.0;
@@ -316,6 +317,70 @@ public:
 
             // Add the marker to the marker array
             marker_array.markers.push_back(marker);
+
+                // ==================== Draw Circle at Left Point ====================
+            visualization_msgs::msg::Marker circle_marker;
+            circle_marker.header.frame_id = scan.header.frame_id;
+            circle_marker.header.stamp = scan.header.stamp;
+            circle_marker.ns = "gaps";
+            circle_marker.id = id++; // Assign a unique ID
+            circle_marker.type = visualization_msgs::msg::Marker::SPHERE;
+            circle_marker.action = visualization_msgs::msg::Marker::ADD;
+            circle_marker.lifetime = rclcpp::Duration::from_seconds(0.15);
+            // Set position at p_left
+            circle_marker.pose.position.x = p_left.x;
+            circle_marker.pose.position.y = p_left.y;
+            circle_marker.pose.position.z = p_left.z;
+
+            // Set circle size (radius = 0.1)
+            circle_marker.scale.x = 0.1;  // Diameter along x
+            circle_marker.scale.y = 0.1;  // Diameter along y
+            circle_marker.scale.z = 0.1;  // Small thickness
+
+            // Set color (e.g., green)
+            circle_marker.color.r = 0.0;
+            circle_marker.color.g = 1.0;
+            circle_marker.color.b = 0.0;
+            circle_marker.color.a = 1.0; // Fully opaque
+
+            // Add circle marker to array
+            marker_array.markers.push_back(circle_marker);
+
+            // ==================== Draw Line from Offset Point to Midpoint ====================
+            visualization_msgs::msg::Marker line_marker;
+            line_marker.header.frame_id = scan.header.frame_id;
+            line_marker.header.stamp = scan.header.stamp;
+            line_marker.ns = "gap_direction";
+            line_marker.id = id++; // Unique ID
+            line_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+            line_marker.action = visualization_msgs::msg::Marker::ADD;
+            line_marker.lifetime = rclcpp::Duration::from_seconds(0.15);
+            line_marker.color.r = 0.0; // Yellow color for visibility
+            line_marker.color.g = 1.0;
+            line_marker.color.b = 1.0;
+            line_marker.color.a = 1.0; // Fully opaque
+            line_marker.scale.x = 0.02; // Line width
+
+            // Compute middle point of the gap
+            geometry_msgs::msg::Point mid_point;
+            mid_point.x = (left_point.first + right_point.first) / 2.0;
+            mid_point.y = (left_point.second + right_point.second) / 2.0;
+            mid_point.z = 0.0;
+
+            // Compute offset start point at variable distance
+            double distance = 1;
+            double angle = std::atan2(left_point.first - right_point.first, right_point.second - left_point.second);
+            geometry_msgs::msg::Point start_point;
+            start_point.x = mid_point.x + distance * std::cos(angle);
+            start_point.y = mid_point.y + distance * std::sin(angle);
+            start_point.z = 0.0;
+
+            // Add the two points to the marker
+            line_marker.points.push_back(start_point);
+            line_marker.points.push_back(mid_point);
+
+            // Add the new marker to the array
+            marker_array.markers.push_back(line_marker);
         }
 
         return marker_array;

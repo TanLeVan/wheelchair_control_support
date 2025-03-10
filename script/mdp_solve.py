@@ -1,5 +1,3 @@
-# Using negative cost function now. Changing softmin to softmax
-
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
@@ -9,13 +7,13 @@ import json
 matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on your environment
 
 # Save to file path
-saving_path = "../data/value_function.json"
+saving_path = "../data/value_function_temp.json"
 
 # Cost function parameter
 w1 = 1.0  # weight for theta
-w2 = 3.0  # weight for distance cost Cd
-zeta = 0.5  # constant cost
-r = 5.0  # reference distance for Cd
+w2 = 2.0  # weight for distance cost Cd
+zeta = 1.0  # constant cost
+r = 2.0  # reference distance for Cd
 
 # Parameter to calculate value function
 v_max = 0.3  # max linear velocity
@@ -24,13 +22,13 @@ number_of_linear_vel = 12 #difference between each discretized linear velocity
 omega_max = 1.6  # max angular velocity
 number_of_angle_vel = 12 # difference between each discretized angular velocity
 discount_factor = 0.9  # discount factor
-delta_t = 0.2 # time step
-max_distance = 5.0  #furthest distance from goal to be considered
-number_of_distance_point = 100
+delta_t = 0.1# time step
+max_distance = 2.0  #furthest distance from goal to be considered
+number_of_distance_point = 200
 max_abs_angle_distance = np.pi #furthest angular distance to be considered (in both direction) 
 number_of_angle_point = 50
 max_iterations = 1000  # maximum iterations for value iteration
-tolerance = 0.5  # convergence threshold
+tolerance = 0.1  # convergence threshold
 max_steps = 1000  # maximum steps for the trajectory
 
 # Discretize state space
@@ -76,11 +74,12 @@ for iteration in range(max_iterations):
 
             # Current value
             v_current = V[i, j]
-            min_value = float('inf')
+            # min_value = float('inf')
             
             # Iterate over all possible actions (v, omega)
             # Update the value function using softmin
-            # integral = 0
+            integral = 0
+            Q_values = []
             for v in v_values:
                 for omega in omega_values:
                     # Compute next state
@@ -88,11 +87,15 @@ for iteration in range(max_iterations):
                     
                     # Bellman update
                     Q_xu = cost(d, theta) + discount_factor * V[i_next, j_next]
-                    # integral += np.exp(Q_xu)
-                    min_value = min(min_value, Q_xu)
+                    Q_values.append(Q_xu)
+                    # min_value = min(min_value, Q_xu)
             
             # Update value function
-            V[i, j] = min_value
+            Q_values = np.array(Q_values)
+            min_Q = np.min(Q_values)
+            log_integral = - min_Q + np.log(np.sum(np.exp(-(Q_values - min_Q))))
+            V[i, j] = - log_integral
+            # V[i,j] = min_value
             delta = max(delta, abs(v_current - V[i, j]))
     
     # Print the iteration progress

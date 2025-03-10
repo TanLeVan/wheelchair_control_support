@@ -72,6 +72,8 @@ ShareControl::ShareControl()
                                                                           std::bind(&ShareControl::odom_callback, this, std::placeholders::_1));
     joy_subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>("/whill/states/joy", rclcpp::SensorDataQoS(),
                                                                        std::bind(&ShareControl::joystick_callback, this, std::placeholders::_1));
+    gap_subscriber_ = this->create_subscription<wheelchair_control_support::msg::Gap>("/intended_gap", 1,
+                                                                                      std::bind(&ShareControl::gap_callback, this, std::placeholders::_1));
     vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/whill/controller/cmd_vel", 1);
     joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/controller/joy", 1);
     obs_list_pub_ = this->create_publisher<geometry_msgs::msg::PoseArray>("/obstacle_list", 10);
@@ -113,6 +115,13 @@ void ShareControl::joystick_callback(const sensor_msgs::msg::Joy &msg)
         is_joystick_updated_ = true;
     }
 }
+
+void ShareControl::gap_callback(const wheelchair_control_support::msg::Gap &msg)
+{
+    observed_gap_ = msg;
+    is_gap_updated_ = true;
+}   
+
 
 void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
 {
@@ -220,6 +229,27 @@ std::vector<ShareControl::State> ShareControl::generate_trajectory(const double 
     return trajectory;
 }
 
+double ShareControl::calculate_vel_pair_cost(const double linear_vel, 
+    const double yaw_rate, 
+    const wheelchair_control_support::msg::Gap &gap,
+    const double linear_vel_user,
+    const double yaw_rate_user,
+    const std::vector<State>& traj)
+{
+    const double w_user = 5.0;
+    const double w_angle = 0.5;
+    const double w_distance = 0;
+
+    double user_cost = hypot(linear_vel - linear_vel_user, yaw_rate - yaw_rate_user);
+    double next_yaw = period_ * yaw_rate;
+    double next_x = period_ * linear_vel;
+    double next_y = 0;
+    double angle_diff = std::atan2(gap.middle_point_y, gap.middle_point_x) - traj.back().yaw_;
+    double distance_diff = hypot(gap.middle_point_x - traj.back().x_, gap.middle_point_y - traj.back().y_);
+
+    return w_user * user_cost + w_angle * abs(angle_diff)*exp(gap.confident) + w_distance * distance_diff;
+}
+
 // void ShareControl::motion(ShareControl::State &state, double linear_vel, double yaw_rate)
 // {
 //     state.yaw_ += predict_timestep_*yaw_rate;
@@ -265,6 +295,7 @@ void ShareControl::trajectory_visualization(const std::vector<State> &traj)
         ++marker_id;
     }
     traj_visualizer_pub_->publish(traj_with_footprint);
+
 }
 
 void ShareControl::user_trajectory_visualization(const std::vector<State> &traj)
@@ -339,42 +370,82 @@ void ShareControl::main_process()
         reset_command_vel();
         geometry_msgs::msg::Twist joy_vel_ = calculate_velocity_from_joy();
         std::vector<State> joy_traj = generate_trajectory(joy_vel_.linear.x, joy_vel_.angular.z);
-
         user_trajectory_visualization(joy_traj);
-        if (!check_for_colllision(joy_traj))
-        {
-            cmd_vel_ = joy_vel_;
 
-            trajectory_visualization(joy_traj);
+        if(abs(joy_vel_.linear.x) <= 1e-4 && abs(joy_vel_.angular.z) <= 1e-4) //Stop safely
+        {
+            cmd_vel_.linear.x = 0;
+            cmd_vel_.angular.z = 0;   
         }
         else 
         {
-            std::cout << "Future collision prediced" << "/n";
-            std::cout << "Calculating alternative velocity" << std::endl;
-            Window window = cal_dynamic_window();
-            std::vector<std::pair<double, double>> vel_pair_list = discretize_dynamic_window(window);
-            std::vector<State> best_traj;
-            double min_vel_distance{1e6};
-            for (auto vel_pair : vel_pair_list)
+            if(observed_gap_.confident < 0) // If no intended gap is found
             {
-                std::vector<State> traj = generate_trajectory(vel_pair.first, vel_pair.second);
-                if(check_for_colllision(traj))
-                    continue;
-                if(hypot(vel_pair.first - joy_vel_.linear.x, vel_pair.second - joy_vel_.angular.z) < min_vel_distance)
+                /**
+                 * Check for collision from user input. If no collision, use user input
+                 * If collision, use dynamic window approach
+                 */
+                std::cout << "No intended gap detected" << std::endl;
+                if(!check_for_colllision(joy_traj))
                 {
-                    best_traj = traj;
-                    min_vel_distance = hypot(vel_pair.first - joy_vel_.linear.x, vel_pair.second - joy_vel_.angular.z);
-                    cmd_vel_.linear.x = vel_pair.first;
-                    cmd_vel_.angular.z = vel_pair.second;
+                    cmd_vel_.linear.x = joy_vel_.linear.x;
+                    cmd_vel_.angular.z = joy_vel_.angular.z;
+                    trajectory_visualization(joy_traj);
+                }
+                else
+                {
+                    std::cout << "Collision detected" << std::endl;
+                    Window window = cal_dynamic_window();
+                    std::vector<std::pair<double, double>> vel_pair_list = discretize_dynamic_window(window);
+                    std::vector<State> best_traj;
+                    double min_vel_distance{1e6};
+                    for (auto vel_pair : vel_pair_list)
+                    {
+                        std::vector<State> traj = generate_trajectory(vel_pair.first, vel_pair.second);
+                        if(check_for_colllision(traj))
+                            continue;
+                            
+                        if(hypot(vel_pair.first - joy_vel_.linear.x, vel_pair.second - joy_vel_.angular.z) < min_vel_distance)
+                        {
+                            best_traj = traj;
+                            min_vel_distance = hypot(vel_pair.first - joy_vel_.linear.x, vel_pair.second - joy_vel_.angular.z);
+                            cmd_vel_.linear.x = vel_pair.first;
+                            cmd_vel_.angular.z = vel_pair.second;
+                        }
+                    }
+                    trajectory_visualization(best_traj);
+                    std::cout << "Alternative velocity done" << std::endl;
                 }
             }
-            trajectory_visualization(best_traj);
-            std::cout << "Alternative velocity done" << std::endl;
+            else if(observed_gap_.confident > 0) //If intended gap is found
+            {
+                std::cout << "Indented gap detected" << std::endl;
+                Window window = cal_dynamic_window();
+                std::vector<std::pair<double, double>> vel_pair_list = discretize_dynamic_window(window);
+                double min_cost{1e6};
+                std::vector<State> best_traj;
+                for (auto vel_pair : vel_pair_list)
+                {
+                    std::vector<State> traj = generate_trajectory(vel_pair.first, vel_pair.second);
+                    if(check_for_colllision(traj))
+                        continue;
+                    double cost = calculate_vel_pair_cost(vel_pair.first, vel_pair.second, observed_gap_, joy_vel_.linear.x, joy_vel_.angular.z, traj);
+                    if(cost < min_cost)
+                    {
+                        best_traj = traj;
+                        min_cost = cost;
+                        cmd_vel_.linear.x = vel_pair.first;
+                        cmd_vel_.angular.z = vel_pair.second;
+                    }
+                }
+                trajectory_visualization(best_traj);
+                std::cout << "Intended gap velocity done" << std::endl;
+            }
         }
 
         //Control with virtual joystick control
         joy_pub_->publish(calculate_joy_from_velocity(cmd_vel_));
-        vel_pub_->publish(cmd_vel_);
+        // vel_pub_->publish(cmd_vel_);
         is_scan_updated_ = false;
         is_odom_updated_ = false;
         is_joystick_updated_ = false;
