@@ -66,7 +66,7 @@ ShareControl::ShareControl()
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     /*Initializing subscriber and publisher*/
-    scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan", rclcpp::SensorDataQoS(),                                                                         
+    scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>("/filtered_scan", rclcpp::SensorDataQoS(),                                                                         
                                                                         std::bind(&ShareControl::laser_scan_callback, this, std::placeholders::_1));
     odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>("/whill/odom", rclcpp::SensorDataQoS(),
                                                                           std::bind(&ShareControl::odom_callback, this, std::placeholders::_1));
@@ -236,18 +236,24 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
     const double yaw_rate_user,
     const std::vector<State>& traj)
 {
-    const double w_user = 5.0;
-    const double w_angle = 0.5;
+    const double w_user = 1.0;
+    const double w_angle = 0.3; //0.3
     const double w_distance = 0;
 
     double user_cost = hypot(linear_vel - linear_vel_user, yaw_rate - yaw_rate_user);
-    double next_yaw = period_ * yaw_rate;
-    double next_x = period_ * linear_vel;
-    double next_y = 0;
-    double angle_diff = std::atan2(gap.middle_point_y, gap.middle_point_x) - traj.back().yaw_;
+    // double next_yaw = period_ * yaw_rate;
+    // double next_x = period_ * linear_vel;
+    // double next_y = 0;
+    double angle_diff = traj.back().yaw_ - std::atan2(gap.middle_point_y, gap.middle_point_x);
+    std::cout << "Angle diff origin " << angle_diff << std::endl;
+    if (abs(angle_diff) > M_PI)
+    {
+        angle_diff = 2 * M_PI - abs(angle_diff);
+    }
+    std::cout << angle_diff << std::endl;
     double distance_diff = hypot(gap.middle_point_x - traj.back().x_, gap.middle_point_y - traj.back().y_);
 
-    return w_user * user_cost + w_angle * abs(angle_diff)*exp(gap.confident) + w_distance * distance_diff;
+    return w_user * user_cost + w_angle * abs(angle_diff)*exp(5*gap.confident) + w_distance * distance_diff;
 }
 
 // void ShareControl::motion(ShareControl::State &state, double linear_vel, double yaw_rate)
@@ -261,8 +267,9 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
 
 bool ShareControl::check_for_colllision(const std::vector<State> &traj)
 {
-    for (auto state : traj)
+    for (std::size_t i = 2; i <= traj.size(); i++)
     {
+        State state = traj[i];
         footprint_ptr_->move_footprint(state.x_, state.y_, state.yaw_);
         for (geometry_msgs::msg::Pose obs : obs_list_.poses)
         {
@@ -428,7 +435,7 @@ void ShareControl::main_process()
                 {
                     std::vector<State> traj = generate_trajectory(vel_pair.first, vel_pair.second);
                     if(check_for_colllision(traj))
-                        continue;
+                        {continue;}
                     double cost = calculate_vel_pair_cost(vel_pair.first, vel_pair.second, observed_gap_, joy_vel_.linear.x, joy_vel_.angular.z, traj);
                     if(cost < min_cost)
                     {

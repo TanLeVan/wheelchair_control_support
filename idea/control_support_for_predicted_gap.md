@@ -65,3 +65,4 @@ double cost_function(vel_pair, traj, user_vel, gap):
     return w_u *C_u + w_a * angle_diff + w_d * distance_diff
 
 
+## Idea:

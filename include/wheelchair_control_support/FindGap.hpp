@@ -17,7 +17,7 @@
 class FindGap
 {
 private:
-    const double mk_gap_length_threshold{0.7}; //Threshold for gap length. Gap < threshold will be omitted
+    const double mk_gap_length_threshold{0.8}; //Threshold for gap length. Gap < threshold will be omitted
     const double mk_gap_angle_threshold{M_PI}; // Gap with arc anngle > threshold will be ommited
     const double mk_merged_gap_angle_threshold {2*M_PI/3}; // 
 
@@ -277,7 +277,7 @@ public:
             marker.lifetime = rclcpp::Duration::from_seconds(0.15);
 
             // Set color for the marker (e.g., blue for merged gaps)
-            if (gap.get_confident() >=  confident_threshold)
+            if (gap.get_confident() >=  confident_threshold && gap.get_confident() == max_confident)
             {
                 marker.color.r = 1.0;
                 marker.color.g = 0.0;

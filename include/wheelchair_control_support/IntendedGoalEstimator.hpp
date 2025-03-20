@@ -50,9 +50,9 @@ public:
 
     struct WhillDynamic
     {
-        double max_linear_vel_{0.3};
+        double max_linear_vel_{0.4};
         double min_linear_vel_{-0.3};
-        double max_yaw_rate_{1.6};
+        double max_yaw_rate_{1.0};
         double max_acceleration_{1.};
         double max_deceleration_{2.};
         double max_yaw_acceleration_{2.5};
@@ -150,7 +150,8 @@ private:
     double number_of_distance_point_; //Number of distance value after discretization
     double max_abs_angle_distance_; 
     double number_of_angle_point_;
-
+    double number_of_angle_vel_;
+    double number_of_linear_vel_;
 
 
     /**

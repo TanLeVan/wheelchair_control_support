@@ -24,7 +24,6 @@ GapIntentionEstimator::GapIntentionEstimator()
      * Set up parameter
      *  */ 
     trajectory_length_ = static_cast<int>(3/delta_t_); 
-    confident_threshold_ = 0.5;
     //Whill dynamic need to be added
 
     //Prepare subscriber and check for subscribe frequency
@@ -71,6 +70,8 @@ void GapIntentionEstimator::get_value_function(const std::string& value_function
         number_of_distance_point_ = metadata.at("number_of_distance_point");
         max_abs_angle_distance_ = metadata.at("max_abs_angle_distance");
         number_of_angle_point_ = metadata.at("number_of_angle_point");
+        number_of_angle_vel_ = metadata.at("number_of_angle_vel");
+        number_of_linear_vel_ = metadata.at("number_of_linear_vel");
 
         // Extract cost function parameters
         nlohmann::json cost_params = j.at("cost_function_param");
@@ -174,17 +175,21 @@ void GapIntentionEstimator::laser_scan_callback(const sensor_msgs::msg::LaserSca
     gap_finder_.find_gap_from_scan(*scan_msg, observed_gap_);
     gap_finder_.merge_gap(*scan_msg, observed_gap_);
     std::cout << "Observed Gaps Size: " << observed_gap_.size() << ", Trajectory Size: " << raw_trajectory_.size() << std::endl;
+
+
     if(!observed_gap_.empty() && !raw_trajectory_.empty()) //If gaps is found and have trajectory information
     {
-        // Calculate gap logit
-        // Using log-sum-exp trick for numerically stable calculation
-        // Step 1: Compute log probability
+        /* Calculate prior */
+        const double no_gap_prior = 1.0/(observed_gap_.size() + 1.0);
+        const double gap_prior = (1 - no_gap_prior)/observed_gap_.size();
+
+        // Compute logit for candidate gap
         std::vector<double> gap_logits;
         double max_logit = -std::numeric_limits<double>::infinity();
         for(auto& gap : observed_gap_)
         {
             auto state_action_trajectory {calculate_state_trajectory_one_gap(raw_trajectory_, gap)};
-            double gap_logit{0};
+            double gap_logit{log(gap_prior)};
             for(const auto& state_action_pair : state_action_trajectory)
             {
                 gap_logit+= log(user_policy(state_action_pair.first, state_action_pair.second, delta_t_));
@@ -198,39 +203,71 @@ void GapIntentionEstimator::laser_scan_callback(const sensor_msgs::msg::LaserSca
             max_logit = std::max(max_logit, gap_logit);
         }
 
-        // Step 2: Normalized using Log-Sum-Exp
+        //Compute logit for no gap hypothesis
+        double no_gap_logit = log(no_gap_prior);
+        double action_space_size = number_of_angle_vel_*number_of_linear_vel_;
+        for (const auto& action : raw_trajectory_) {
+            no_gap_logit += log(1.0 / action_space_size);
+        }
+        gap_logits.push_back(no_gap_logit);
+        max_logit = std::max(max_logit, no_gap_logit);
+
+        //Temperature scaling 
+        double temperature = 50;
+        for (double& logit : gap_logits)
+        {
+            logit /= temperature;
+        }
+
+
+        //  Normalized using Log-Sum-Exp Trick
         double log_sum_exp = 0.0;
         for (double logit : gap_logits)
         {
-            log_sum_exp += exp(logit - max_logit);
+            log_sum_exp += exp(logit - max_logit/temperature);
         }
-        log_sum_exp = max_logit + log(log_sum_exp);
+        log_sum_exp = max_logit/temperature + log(log_sum_exp);
 
         // Step 3: Convert back to probabilities and set confidence
         for (std::size_t i = 0; i < observed_gap_.size(); ++i)
         {
-            double prob = exp(gap_logits[i] - log_sum_exp);
+            double prob = exp((gap_logits[i] - log_sum_exp));
             observed_gap_[i].set_confident(prob);
             std::cout << "Gap confident: " << prob << "\n";
         }
-    }
-    int id = 0;
-    gap_visualize_publisher_->publish(gap_finder_.visualize_gaps(*scan_msg, observed_gap_, confident_threshold_,id));
+        double no_goal_prob = exp((gap_logits.back() - log_sum_exp));
+        std::cout << "No-Goal Posterior: " << no_goal_prob << std::endl;
 
-    wheelchair_control_support::msg::Gap found_gap;
-    if(!observed_gap_.empty())
-    {
-        auto max_gap = std::max_element(observed_gap_.begin(), observed_gap_.end(), [](const Gap& a, const Gap& b) {return a.get_confident() < b.get_confident();});
-        if(max_gap->get_confident() > confident_threshold_)
+        int id = 0;
+        gap_visualize_publisher_->publish(gap_finder_.visualize_gaps(*scan_msg, observed_gap_,no_goal_prob ,id));
+    
+
+        wheelchair_control_support::msg::Gap found_gap;
+        if(!observed_gap_.empty())
         {
-            found_gap.header = scan_msg->header;
-            found_gap.confident = max_gap->get_confident();
-            found_gap.left_point_x = max_gap->get_l_cartesian().first;
-            found_gap.left_point_y = max_gap->get_l_cartesian().second;
-            found_gap.right_point_x = max_gap->get_r_cartesian().first;
-            found_gap.right_point_y = max_gap->get_r_cartesian().second;
-            found_gap.middle_point_x = (found_gap.left_point_x + found_gap.right_point_x)/2;
-            found_gap.middle_point_y = (found_gap.left_point_y + found_gap.right_point_y)/2;
+            auto max_gap = std::max_element(observed_gap_.begin(), observed_gap_.end(), [](const Gap& a, const Gap& b) {return a.get_confident() < b.get_confident();});
+            if(max_gap->get_confident() > no_goal_prob)
+            {
+                found_gap.header = scan_msg->header;
+                found_gap.confident = max_gap->get_confident() - no_goal_prob;
+                found_gap.left_point_x = max_gap->get_l_cartesian().first;
+                found_gap.left_point_y = max_gap->get_l_cartesian().second;
+                found_gap.right_point_x = max_gap->get_r_cartesian().first;
+                found_gap.right_point_y = max_gap->get_r_cartesian().second;
+                found_gap.middle_point_x = (found_gap.left_point_x + found_gap.right_point_x)/2;
+                found_gap.middle_point_y = (found_gap.left_point_y + found_gap.right_point_y)/2;
+            }
+            else
+            {
+                found_gap.header = scan_msg->header;
+                found_gap.confident = -1;
+                found_gap.left_point_x = 0;
+                found_gap.left_point_y = 0;
+                found_gap.middle_point_x = 0;
+                found_gap.middle_point_y = 0;
+                found_gap.right_point_x = 0;
+                found_gap.right_point_y = 0;
+            }
         }
         else
         {
@@ -241,22 +278,11 @@ void GapIntentionEstimator::laser_scan_callback(const sensor_msgs::msg::LaserSca
             found_gap.middle_point_x = 0;
             found_gap.middle_point_y = 0;
             found_gap.right_point_x = 0;
-            found_gap.right_point_y = 0;
+            found_gap.right_point_y = 0;0;
         }
+        gap_publisher_->publish(found_gap);
+        std::cout << "Finish 1 scan \n\n\n\n";
     }
-    else
-    {
-        found_gap.header = scan_msg->header;
-        found_gap.confident = -1;
-        found_gap.left_point_x = 0;
-        found_gap.left_point_y = 0;
-        found_gap.middle_point_x = 0;
-        found_gap.middle_point_y = 0;
-        found_gap.right_point_x = 0;
-        found_gap.right_point_y = 0;0;
-    }
-    gap_publisher_->publish(found_gap);
-    std::cout << "Finish 1 scan \n\n\n\n";
 
     // exit(0);
 }
@@ -451,8 +477,7 @@ double GapIntentionEstimator::user_policy(const State& state, const Action& acti
 {
     // std::cout << "V " << value_function(state) << std::endl;
     // std::cout << "Q " << value_function(state) << std::endl;
-    return exp(0.02*(value_function(state) - value_action_function(state, action, delta_t)));
-    //return exp(value_function(state));
+    return exp((value_function(state) - value_action_function(state, action, delta_t)));
 }
 
 
