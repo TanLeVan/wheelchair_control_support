@@ -52,9 +52,9 @@ ros2_laser_scan_merger:
     laser1XOff: 0.5
     laser1YOff: 0.245
     laser1ZOff: 0.28
-    laser2Alpha: -80.0
+    laser2Alpha: -90.0
     laser2AngleMax: 125.0
-    laser2AngleMin: -90.0
+    laser2AngleMin: -80.0
     laser2B: 255
     laser2G: 0
     laser2R: 0

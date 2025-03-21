@@ -122,7 +122,6 @@ void ShareControl::gap_callback(const wheelchair_control_support::msg::Gap &msg)
     is_gap_updated_ = true;
 }   
 
-
 void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
 {
     std::string lidar_frame{scan.header.frame_id};
@@ -140,9 +139,9 @@ void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
             angle += scan.angle_increment * skip_point_;
             continue;
         }
-        geometry_msgs::msg::Pose pose;
-        pose.position.x = r * cos(angle);
-        pose.position.y = r * sin(angle);
+        geometry_msgs::msg::Pose obstacle_pose;
+        obstacle_pose.position.x = r * cos(angle);
+        obstacle_pose.position.y = r * sin(angle);
         angle += scan.angle_increment * skip_point_;
         /**Tranform the pose from lidar coordinate to robot coordinate (/base_footprint)**/
         if (lidar_frame!=robot_frame_){
@@ -151,7 +150,7 @@ void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
                 geometry_msgs::msg::TransformStamped to_robot_frame = tf_buffer_->lookupTransform(
                     robot_frame_, lidar_frame,
                     tf2::TimePointZero);
-                tf2::doTransform(pose, pose, to_robot_frame);
+                tf2::doTransform(obstacle_pose, obstacle_pose, to_robot_frame);
             }
             catch (const tf2::TransformException &ex)
             {
@@ -160,7 +159,11 @@ void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
                 return;
             }
         }
-        obs_list_.poses.push_back(pose);
+        // Lidar reading inside footprint of robot at the current time is not counted as obstacle 
+        // if(!footprint_ptr_->check_point_inside_footprint(obstacle_pose.position.x, obstacle_pose.position.y))
+        // {
+            obs_list_.poses.push_back(obstacle_pose);
+        // }
     }
     obs_list_pub_->publish(obs_list_);
 }
@@ -218,13 +221,10 @@ std::vector<ShareControl::State> ShareControl::generate_trajectory(const double 
     trajectory.reserve(sample_size);
     State state(0., 0., 0., linear_vel, yaw_rate);
     for (int i = 0; i < sample_size; ++i)
-    {
-        state.yaw_ += predict_timestep_ * yaw_rate;
-        state.x_ += linear_vel * std::cos(state.yaw_) * predict_timestep_;
-        state.y_ += linear_vel * std::sin(state.yaw_) * predict_timestep_;
-        state.velocity_ = linear_vel;
-        state.yaw_rate_ = yaw_rate;
-        trajectory.push_back(state);
+    {   
+        State  next_state = state.next_state(predict_timestep_);
+        trajectory.push_back(next_state);
+        state = next_state;
     }
     return trajectory;
 }
@@ -237,24 +237,26 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
     const std::vector<State>& traj)
 {
     const double w_user = 1.0;
-    const double w_angle = 0.3; //0.3
+    const double w_angle = (gap.confident>0)?0.3:0.0; //0.3
     const double w_distance = 0;
+    const double w_obstacle = 0.5;
+    const double k = 5;
+
+    State current_state{0,0,0,linear_vel, yaw_rate};
+    State next_state = current_state.next_state(period_);
 
     double user_cost = hypot(linear_vel - linear_vel_user, yaw_rate - yaw_rate_user);
-    // double next_yaw = period_ * yaw_rate;
-    // double next_x = period_ * linear_vel;
-    // double next_y = 0;
-    double angle_diff = traj.back().yaw_ - std::atan2(gap.middle_point_y, gap.middle_point_x);
-    std::cout << "Angle diff origin " << angle_diff << std::endl;
+    double obstacle_cost = 1/closest_distance_to_obstacle(next_state);
+    double angle_diff = next_state.yaw_ - std::atan2(gap.middle_point_y, gap.middle_point_x);
     if (abs(angle_diff) > M_PI)
     {
         angle_diff = 2 * M_PI - abs(angle_diff);
     }
-    std::cout << angle_diff << std::endl;
-    double distance_diff = hypot(gap.middle_point_x - traj.back().x_, gap.middle_point_y - traj.back().y_);
+    double distance_diff = hypot(gap.middle_point_x - next_state.x_, gap.middle_point_y - next_state.y_);
 
-    return w_user * user_cost + w_angle * abs(angle_diff)*exp(5*gap.confident) + w_distance * distance_diff;
+    return w_user * user_cost + w_angle * abs(angle_diff)*exp(k*gap.confident) + w_distance * distance_diff  + w_obstacle * obstacle_cost;
 }
+
 
 // void ShareControl::motion(ShareControl::State &state, double linear_vel, double yaw_rate)
 // {
@@ -280,6 +282,21 @@ bool ShareControl::check_for_colllision(const std::vector<State> &traj)
         }
     }
     return false;
+}
+
+double ShareControl::closest_distance_to_obstacle(const State& state)
+{
+    double min_distance = 1000000;
+    for (geometry_msgs::msg::Pose obs : obs_list_.poses)
+    {
+        double distance = hypot(obs.position.x - state.x_, obs.position.y - state.y_);
+        if (distance < min_distance)
+        {
+            min_distance = distance;
+        }
+    }
+    std::cout << "Min distance: " << min_distance << "\n";
+    return min_distance;
 }
 
 void ShareControl::trajectory_visualization(const std::vector<State> &traj)

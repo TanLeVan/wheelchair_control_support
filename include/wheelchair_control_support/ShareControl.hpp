@@ -29,13 +29,24 @@ public:
     class State
     {
         public: 
-            State();
+            State(){};
             State(const double x, const double y, const double yaw, const double velocity, const double yaw_rate);
-            double x_;
-            double y_;
-            double yaw_;
-            double velocity_;
-            double yaw_rate_;
+            double x_{0};
+            double y_{0};
+            double yaw_{0};
+            double velocity_{0};
+            double yaw_rate_{0};
+
+            State next_state(const double period)
+            {
+                State next_state;
+                next_state.yaw_ = yaw_ + yaw_rate_*period;
+                next_state.x_ = x_ + velocity_ * std::cos(yaw_ + yaw_rate_*period/2) * period;
+                next_state.y_ = y_ + velocity_ * std::sin(yaw_ + yaw_rate_*period/2) * period;
+                next_state.velocity_ = velocity_;
+                next_state.yaw_rate_ = yaw_rate_;
+                return next_state;
+            }
     };
     struct Window
     { 
@@ -106,6 +117,8 @@ public:
      * **/
     bool check_for_colllision(const std::vector<State> &traj);
 
+    double closest_distance_to_obstacle(const State& state);
+
     /**
      * Calculate the next state of the robot after one time step
      * @param state reference to the current state of the robot
@@ -113,7 +126,7 @@ public:
      * @param yaw_rate the assumed yaw rate
      * return the next state of the robot assuming linear_vel and yaw_rate. The next state overwrite the state parameter.
      * **/
-    void motion(State &state,const double linear_vel,const double yaw_rate);
+    // void motion(State &state,const double linear_vel,const double yaw_rate);
 
     /**
      * Visualize trajectory with footprint

@@ -15,7 +15,7 @@ GapIntentionEstimator::GapIntentionEstimator()
     : rclcpp::Node("gap_intention_estimator")
 {
     std::string package_share_directory = ament_index_cpp::get_package_share_directory("wheelchair_control_support");
-    std::string value_function_filepath = package_share_directory + "/data/value_function_very_fined_changed_cost.json";
+    std::string value_function_filepath = package_share_directory + "/data/value_function_interpolation.json";
     std::string value_function_savepath = package_share_directory + "/data/check_value_function.csv";
     get_value_function(value_function_filepath, value_function_);
     // save_value_function(value_function_savepath, value_function_);
@@ -278,7 +278,7 @@ void GapIntentionEstimator::laser_scan_callback(const sensor_msgs::msg::LaserSca
             found_gap.middle_point_x = 0;
             found_gap.middle_point_y = 0;
             found_gap.right_point_x = 0;
-            found_gap.right_point_y = 0;0;
+            found_gap.right_point_y = 0;
         }
         gap_publisher_->publish(found_gap);
         std::cout << "Finish 1 scan \n\n\n\n";
@@ -379,11 +379,21 @@ GapIntentionEstimator::State GapIntentionEstimator::state_transition_function(co
     double y_t = state.distance_to_goal_*sin(state.angular_distance_to_goal_);
 
     // Apply transformation matrix
-    double cos_wt = cos(action.angular_vel_ * delta_t);
-    double sin_wt = sin(action.angular_vel_ * delta_t);
-    
-    double x_next = cos_wt * x_t + sin_wt * y_t - cos_wt * action.linear_vel_ * delta_t;
-    double y_next = -sin_wt * x_t + cos_wt * y_t + sin_wt * action.linear_vel_ * delta_t;
+    double omega_dt = action.angular_vel_ * delta_t;
+    double omega_dt_half = omega_dt / 2.0;
+    double cos_wt = std::cos(omega_dt);
+    double sin_wt = std::sin(omega_dt);
+    double cos_half = std::cos(omega_dt_half);
+    double sin_half = std::sin(omega_dt_half);
+
+    // Apply transformation 
+    double x_next = cos_wt * x_t + sin_wt * y_t
+                  - cos_wt * cos_half * action.linear_vel_ * delta_t
+                  + sin_wt * sin_half * action.linear_vel_ * delta_t;
+
+    double y_next = -sin_wt * x_t + cos_wt * y_t
+                  + sin_wt * cos_half * action.linear_vel_ * delta_t
+                  - cos_wt * sin_half * action.linear_vel_ * delta_t;
 
 
     new_state.distance_to_goal_ = sqrt(x_next*x_next + y_next*y_next);
