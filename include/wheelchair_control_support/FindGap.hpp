@@ -17,7 +17,7 @@
 class FindGap
 {
 private:
-    const double mk_gap_length_threshold{0.8}; //Threshold for gap length. Gap < threshold will be omitted
+    const double mk_gap_length_threshold{0.6}; //Threshold for gap length. Gap < threshold will be omitted
     const double mk_gap_angle_threshold{M_PI}; // Gap with arc anngle > threshold will be ommited
     const double mk_merged_gap_angle_threshold {2*M_PI/3}; // 
 
@@ -274,7 +274,7 @@ public:
             marker.id = id++; // Increment ID for each marker
             marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
             marker.action = visualization_msgs::msg::Marker::ADD;
-            marker.lifetime = rclcpp::Duration::from_seconds(0.15);
+            marker.lifetime = rclcpp::Duration::from_seconds(0.2);
 
             // Set color for the marker (e.g., blue for merged gaps)
             if (gap.get_confident() >=  confident_threshold && gap.get_confident() == max_confident)
@@ -355,8 +355,8 @@ public:
             line_marker.type = visualization_msgs::msg::Marker::LINE_STRIP;
             line_marker.action = visualization_msgs::msg::Marker::ADD;
             line_marker.lifetime = rclcpp::Duration::from_seconds(0.15);
-            line_marker.color.r = 0.0; // Yellow color for visibility
-            line_marker.color.g = 1.0;
+            line_marker.color.r = 1.0; // Yellow color for visibility
+            line_marker.color.g = 0.0;
             line_marker.color.b = 1.0;
             line_marker.color.a = 1.0; // Fully opaque
             line_marker.scale.x = 0.02; // Line width

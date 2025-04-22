@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+
+# Visualize the actual joystick inputs and calculated joystick output in a 2D plot using matplotlib
+# The actual joystick input is represented by a red circle  
+# The calculated joystick output  is represented by a green circle
+# The plot is updated in real-time as new joystick messages are received
+# This is to visualize the difference between the user's joystick input and the 
+# joystick output to understand how the system is helping the user
+
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy

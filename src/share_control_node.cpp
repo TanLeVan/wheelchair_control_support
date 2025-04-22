@@ -1,4 +1,5 @@
 #include <iostream>
+#include <random>
 #include "wheelchair_control_support/ShareControl.hpp"
 
 #include "rclcpp/rclcpp.hpp"
@@ -33,6 +34,7 @@ ShareControl::ShareControl()
     this->declare_parameter("rectangle_footprint.height", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("rectangle_footprint.width", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("footprint_radius", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("joystick_noise", rclcpp::PARAMETER_BOOL);
 
     predict_time_           = this->get_parameter("predict_time").as_double();
     predict_timestep_       = this->get_parameter("predict_timestep").as_double();
@@ -41,6 +43,7 @@ ShareControl::ShareControl()
     period_                 = this->get_parameter("period").as_double();
     linear_vel_sample_size_ = this->get_parameter("linear_velocity_sample_size").as_int();
     yaw_rate_sample_size_   = this->get_parameter("yaw_rate_sample_size").as_int();
+    joystick_noise_         = this->get_parameter("joystick_noise").as_bool();
     whill_dynamic_.max_linear_vel_ = this->get_parameter("max_linear_vel").as_double();
     whill_dynamic_.min_linear_vel_ = this->get_parameter("min_linear_vel").as_double();
     whill_dynamic_.max_yaw_rate_ = this->get_parameter("max_yaw_rate").as_double();
@@ -171,8 +174,37 @@ void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
 geometry_msgs::msg::Twist ShareControl::calculate_velocity_from_joy()
 {
     geometry_msgs::msg::Twist joy_vel{};
+    if (joystick_noise_)
+    {
+        /*Add noise to joystick*/
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::normal_distribution<double> noise(0, 0.4);
+        joystick_.axes[0] += noise(gen);
+        joystick_.axes[1] += noise(gen);
+
+        /*Limit the joystick value*/
+        if (joystick_.axes[0] > 1)
+        {
+            joystick_.axes[0] = 1;
+        }
+        else if (joystick_.axes[0] < -1)
+        {
+            joystick_.axes[0] = -1;
+        }
+        if (joystick_.axes[1] > 1)
+        {
+            joystick_.axes[1] = 1;
+        }
+        else if (joystick_.axes[1] < -1)
+        {
+            joystick_.axes[1] = -1;
+        }
+    }
+    
     if (is_joystick_updated_)
     {
+
         //Linear velocity
         /*Forward movement*/
         if (joystick_.axes[1] >= 0)
@@ -222,7 +254,7 @@ std::vector<ShareControl::State> ShareControl::generate_trajectory(const double 
     State state(0., 0., 0., linear_vel, yaw_rate);
     for (int i = 0; i < sample_size; ++i)
     {   
-        State  next_state = state.next_state(predict_timestep_);
+        State  next_state = state.next_state(predict_timestep_, 0.425, 0);
         trajectory.push_back(next_state);
         state = next_state;
     }
@@ -238,23 +270,26 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
 {
     const double w_user = 1.0;
     const double w_angle = (gap.confident>0)?0.3:0.0; //0.3
-    const double w_distance = 0;
-    const double w_obstacle = 0.5;
+    const double w_distance = w_angle;
+    const double w_obstacle = 0.1;
     const double k = 5;
 
     State current_state{0,0,0,linear_vel, yaw_rate};
-    State next_state = current_state.next_state(period_);
-
+    State next_state = traj.back();
     double user_cost = hypot(linear_vel - linear_vel_user, yaw_rate - yaw_rate_user);
-    double obstacle_cost = 1/closest_distance_to_obstacle(next_state);
+    double obstacle_cost = exp(-closest_distance_to_obstacle(next_state));
     double angle_diff = next_state.yaw_ - std::atan2(gap.middle_point_y, gap.middle_point_x);
     if (abs(angle_diff) > M_PI)
     {
         angle_diff = 2 * M_PI - abs(angle_diff);
     }
-    double distance_diff = hypot(gap.middle_point_x - next_state.x_, gap.middle_point_y - next_state.y_);
+    footprint_ptr_->move_footprint(next_state.x_, next_state.y_, next_state.yaw_);
+    // double distance_diff = - 1 /footprint_ptr_->distance_from_point_to_footprint(gap.middle_point_x, gap.middle_point_y);
 
-    return w_user * user_cost + w_angle * abs(angle_diff)*exp(k*gap.confident) + w_distance * distance_diff  + w_obstacle * obstacle_cost;
+    return w_user * user_cost + 
+            w_angle * abs(angle_diff)*exp(k*gap.confident);
+            // w_distance *exp(k*gap.confident)* distance_diff  + 
+            w_obstacle * obstacle_cost;
 }
 
 
@@ -269,7 +304,7 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
 
 bool ShareControl::check_for_colllision(const std::vector<State> &traj)
 {
-    for (std::size_t i = 2; i <= traj.size(); i++)
+    for (std::size_t i = 0; i <= traj.size(); i++)
     {
         State state = traj[i];
         footprint_ptr_->move_footprint(state.x_, state.y_, state.yaw_);
@@ -287,15 +322,29 @@ bool ShareControl::check_for_colllision(const std::vector<State> &traj)
 double ShareControl::closest_distance_to_obstacle(const State& state)
 {
     double min_distance = 1000000;
+    footprint_ptr_->move_footprint(state.x_, state.y_, state.yaw_);
     for (geometry_msgs::msg::Pose obs : obs_list_.poses)
     {
-        double distance = hypot(obs.position.x - state.x_, obs.position.y - state.y_);
+        double distance = footprint_ptr_->distance_from_point_to_footprint(obs.position.x, obs.position.y);
         if (distance < min_distance)
         {
             min_distance = distance;
         }
     }
-    std::cout << "Min distance: " << min_distance << "\n";
+    return min_distance;
+}
+
+double ShareControl::closest_distance_to_obstacle(const std::vector<State>& traj)
+{
+    double min_distance = 1000000;
+    for (State state : traj)
+    {
+        double distance = closest_distance_to_obstacle(state);
+        if (distance < min_distance)
+        {
+            min_distance = distance;
+        }
+    }
     return min_distance;
 }
 
@@ -349,7 +398,7 @@ void ShareControl::user_trajectory_visualization(const std::vector<State> &traj)
 ShareControl::Window ShareControl::cal_dynamic_window()
 {
     Window window;
-    window.min_velocity_ = std::max(odom_.twist.twist.linear.x - whill_dynamic_.max_deceleration_ * period_, 0.);
+    window.min_velocity_ = std::max(odom_.twist.twist.linear.x - whill_dynamic_.max_deceleration_ * period_, whill_dynamic_.min_linear_vel_);
     window.max_velocity_ = std::min(odom_.twist.twist.linear.x + whill_dynamic_.max_acceleration_ * period_, whill_dynamic_.max_linear_vel_);
     window.max_yaw_rate_ = std::min(odom_.twist.twist.angular.z + whill_dynamic_.max_yaw_acceleration_ * period_, whill_dynamic_.max_yaw_rate_);
     window.min_yaw_rate_ = std::max(odom_.twist.twist.angular.z - whill_dynamic_.max_yaw_acceleration_ * period_, -whill_dynamic_.max_yaw_rate_);
@@ -403,68 +452,71 @@ void ShareControl::main_process()
         }
         else 
         {
-            if(observed_gap_.confident < 0) // If no intended gap is found
+            // if (observed_gap_.confident > 0){std::cout << "Intended gap detected" << std::endl;} else{std::cout << "No gap detected" << std::endl;}
+            Window window = cal_dynamic_window();
+            std::vector<std::pair<double, double>> vel_pair_list = discretize_dynamic_window(window);
+            double min_cost{1e6};
+            std::vector<State> best_traj;
+            bool is_vel_updated{false};
+            for (auto vel_pair : vel_pair_list)
             {
-                /**
-                 * Check for collision from user input. If no collision, use user input
-                 * If collision, use dynamic window approach
-                 */
-                std::cout << "No intended gap detected" << std::endl;
-                if(!check_for_colllision(joy_traj))
+                std::vector<State> traj = generate_trajectory(vel_pair.first, vel_pair.second);
+                if(check_for_colllision(traj))
+                    {continue;}
+                double cost = calculate_vel_pair_cost(vel_pair.first, vel_pair.second, observed_gap_, joy_vel_.linear.x, joy_vel_.angular.z, traj);
+                if(cost < min_cost)
                 {
-                    cmd_vel_.linear.x = joy_vel_.linear.x;
-                    cmd_vel_.angular.z = joy_vel_.angular.z;
-                    trajectory_visualization(joy_traj);
+                    best_traj = traj;
+                    min_cost = cost;
+                    cmd_vel_.linear.x = vel_pair.first;
+                    cmd_vel_.angular.z = vel_pair.second;
                 }
-                else
-                {
-                    std::cout << "Collision detected" << std::endl;
-                    Window window = cal_dynamic_window();
-                    std::vector<std::pair<double, double>> vel_pair_list = discretize_dynamic_window(window);
-                    std::vector<State> best_traj;
-                    double min_vel_distance{1e6};
-                    for (auto vel_pair : vel_pair_list)
-                    {
-                        std::vector<State> traj = generate_trajectory(vel_pair.first, vel_pair.second);
-                        if(check_for_colllision(traj))
-                            continue;
-                            
-                        if(hypot(vel_pair.first - joy_vel_.linear.x, vel_pair.second - joy_vel_.angular.z) < min_vel_distance)
-                        {
-                            best_traj = traj;
-                            min_vel_distance = hypot(vel_pair.first - joy_vel_.linear.x, vel_pair.second - joy_vel_.angular.z);
-                            cmd_vel_.linear.x = vel_pair.first;
-                            cmd_vel_.angular.z = vel_pair.second;
-                        }
-                    }
-                    trajectory_visualization(best_traj);
-                    std::cout << "Alternative velocity done" << std::endl;
-                }
+                is_vel_updated = true;
             }
-            else if(observed_gap_.confident > 0) //If intended gap is found
+            // std::cout << "Selected velocity pair: " << cmd_vel_.linear.x << " " << cmd_vel_.angular.z << std::endl;
+
+
+            // // Enter recovery motion if no feasible trajectory found
+            if(!is_vel_updated)
             {
-                std::cout << "Indented gap detected" << std::endl;
-                Window window = cal_dynamic_window();
-                std::vector<std::pair<double, double>> vel_pair_list = discretize_dynamic_window(window);
-                double min_cost{1e6};
-                std::vector<State> best_traj;
-                for (auto vel_pair : vel_pair_list)
-                {
-                    std::vector<State> traj = generate_trajectory(vel_pair.first, vel_pair.second);
-                    if(check_for_colllision(traj))
-                        {continue;}
-                    double cost = calculate_vel_pair_cost(vel_pair.first, vel_pair.second, observed_gap_, joy_vel_.linear.x, joy_vel_.angular.z, traj);
-                    if(cost < min_cost)
-                    {
-                        best_traj = traj;
-                        min_cost = cost;
-                        cmd_vel_.linear.x = vel_pair.first;
-                        cmd_vel_.angular.z = vel_pair.second;
-                    }
-                }
-                trajectory_visualization(best_traj);
-                std::cout << "Intended gap velocity done" << std::endl;
+                std::cout << "No feasible trajectory found \n Recovery mode" << std::endl;
+                // cmd_vel_.linear.x = joy_vel_.linear.x;
+                // cmd_vel_.angular.z = joy_vel_.angular.z;
+
+                // double furthest_distance = -1e6;
+                // for (auto vel_pair : vel_pair_list)
+                // {
+                //     State current_state{0,0,0,vel_pair.first, vel_pair.second};
+                //     State next_state = current_state.next_state(period_);
+                //     footprint_ptr_->move_footprint(next_state.x_, next_state.y_, next_state.yaw_);
+                //     bool is_valid_velocity = true;  // Flag to check if the velocity is valid
+
+                //     // Check if any obstacle is inside the footprint
+                //     for (auto obs : obs_list_.poses)
+                //     {
+                //         if (footprint_ptr_->check_point_inside_footprint(obs.position.x, obs.position.y))
+                //         {
+                //             is_valid_velocity = false;  // If an obstacle is inside the footprint, invalidate the velocity
+                //             break;  // No need to check further, break out of the loop
+                //         }
+                //     }
+
+                //     // If no obstacle is inside the footprint, select this velocity
+                //     if (is_valid_velocity)
+                //     {
+                //         // Select this velocity (i.e., the valid velocity pair)
+                //         // Add your code here to process or save the valid velocity, for example:
+                //         cmd_vel_.linear.x = vel_pair.first;
+                //         cmd_vel_.angular.z = vel_pair.second;
+                //         break;  // Exit the loop once a valid velocity is found
+                //     }
+                // }
+                std::cout << "Selected velocity pair: " << cmd_vel_.linear.x << " " << cmd_vel_.angular.z << std::endl;
+                // std::cout << "Furthest distance: " << furthest_distance << std::endl;
             }
+            
+            trajectory_visualization(best_traj);
+            // std::cout << "Intended gap velocity done" << std::endl;
         }
 
         //Control with virtual joystick control
@@ -476,22 +528,7 @@ void ShareControl::main_process()
     }
 }
 
-// void ShareControl::publish_vel_smooth(int no_step)
-// {
-//     float linear_vel_step = (cmd_vel_.linear.x - odom_.twist.twist.linear.x)/no_step;
-//     float yaw_rate_step = (cmd_vel_.angular.z - odom_.twist.twist.angular.z)/no_step;
-//     geometry_msgs::msg::Twist published_vel{odom_.twist.twist};
-//     rclcpp::Rate rate(
-//         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(period_/no_step)) //rclcpp::Rate only accept nanosecond
-//     );
-//     for(int i = 1; i<=no_step; ++i)
-//     {
-//         published_vel.linear.x += i*linear_vel_step;
-//         published_vel.angular.z += i*yaw_rate_step;
-//         vel_pub_->publish(published_vel);
-//         rate.sleep();
-//     }
-// }
+
 int main(int argc, char* argv[])
 {
     rclcpp::init(argc, argv);

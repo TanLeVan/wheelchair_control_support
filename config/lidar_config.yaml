@@ -45,21 +45,21 @@ ros2_laser_scan_merger:
     inverse2: false
     laser1Alpha: 90.0
     laser1AngleMax: 80.0
-    laser1AngleMin: -125.0
+    laser1AngleMin: -115.0
     laser1B: 0
     laser1G: 0
     laser1R: 255
     laser1XOff: 0.5
-    laser1YOff: 0.245
+    laser1YOff: 0.255
     laser1ZOff: 0.28
     laser2Alpha: -90.0
-    laser2AngleMax: 125.0
+    laser2AngleMax: 115.0
     laser2AngleMin: -80.0
     laser2B: 255
     laser2G: 0
     laser2R: 0
     laser2XOff: 0.5
-    laser2YOff: -0.245
+    laser2YOff: -0.255
     laser2ZOff: 0.28
     pointCloudTopic: cloud_in
     pointCloutFrameId: base_link

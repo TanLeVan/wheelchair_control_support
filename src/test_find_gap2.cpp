@@ -86,8 +86,10 @@ private:
     // }
 
     // Add markers for the merged gap
+    // gap_visualize_publisher_->publish(gap_finder.visualize_gaps(*msg, observed_gaps, id));
     gap_finder.merge_gap(*msg, observed_gaps);
-    gap_visualize_publisher_->publish(gap_finder.visualize_gaps(*msg, observed_gaps, id));
+    id = 100;
+    gap_visualize_publisher_->publish(gap_finder.visualize_gaps(*msg, observed_gaps, id, 100));
 }
 
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr gap_visualize_publisher_;

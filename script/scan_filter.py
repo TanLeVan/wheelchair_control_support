@@ -36,7 +36,7 @@ class LidarProcessingNode(Node):
         self.get_logger().info("Lidar Processing Node Started")
 
         # Parameters
-        self.max_range = 5 # max range of the lidar. Point with larger range are discarded
+        self.max_range = 4 # max range of the lidar. Point with larger range are discarded
         self.min_range = 0.0
         self.dbscan_eps = 0.1
         self.dbscan_min_samples = 3

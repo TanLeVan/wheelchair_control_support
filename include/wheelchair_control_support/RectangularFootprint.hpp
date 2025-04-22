@@ -22,7 +22,7 @@ public:
      * Construct rectangular footprint with specific width (x-axis) and height (y-axis)
      */
     RectangularFootprint(double height, double width)
-    : RectangularFootprint(0., 0., 0., height, width)
+    : RectangularFootprint(0, 0, 0, height, width)
     {}
 
     /*true: inside
@@ -31,7 +31,7 @@ public:
     void move_footprint(const double x, const double y, const double theta)
     {
         center_x_ = x;
-        center_y_ = y;
+        center_y_ = y ;
         theta_ = theta;
     }
 
@@ -46,6 +46,28 @@ public:
             return true;
         
         return false;
+    }
+
+    double distance_from_point_to_footprint(const double x, const double y)
+    {
+        double x_wheelchair = x*std::cos(theta_)+y*std::sin(theta_) - center_x_*std::cos(theta_) - center_y_*std::sin(theta_);
+        double y_wheelchair = -x*std::sin(theta_)+y*std::cos(theta_) + center_x_*std::sin(theta_) - center_y_*std::cos(theta_);
+
+          // Calculate the distance to the nearest edge in both directions
+        double dx = std::abs(x_wheelchair) - width_/2;  // Calculate distance from left or right edge
+        double dy = std::abs(y_wheelchair) - height_/2; // Calculate distance from top or bottom edge
+        double distance{};
+        // If the point is inside the footprint, return negative distances
+        if (dx < 0 && dy < 0)
+        {
+            distance = -std::sqrt(dx * dx + dy * dy);
+        }
+        else{
+            distance = std::sqrt(dx * dx + dy * dy);
+        }
+
+        // Return the Euclidean distance to the nearest edge (non-zero if outside the footprint)
+        return distance;
     }
 
     visualization_msgs::msg::Marker generate_footprint_marker(std::string frame_id, int marker_id)
@@ -85,6 +107,11 @@ public:
         marker.points.push_back(p4);
         marker.points.push_back(p1);
         return marker;
+    }
+
+    double get_height() const
+    {
+        return height_;
     }
 private:
     double center_x_{0};

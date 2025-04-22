@@ -29,6 +29,11 @@ public:
         return (hypot((x - center_x_), (y-center_y_)) <= radius_);
     }
 
+    double distance_from_point_to_footprint(const double x, const double y) override
+    {
+        return std::max(0.0, hypot((x - center_x_), (y - center_y_)) - radius_);
+    }
+
     void move_footprint(const double x, const double y, const double ) override
     {
         center_x_ = x;

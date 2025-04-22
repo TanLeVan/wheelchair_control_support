@@ -17,6 +17,8 @@ public:
      * **/
     virtual bool check_point_inside_footprint(const double x, const double y)=0;
 
+    virtual double distance_from_point_to_footprint(const double x, const double y)=0;
+
     /**
      * Return visualization marker for visualizing footprint with rviz
      * **/

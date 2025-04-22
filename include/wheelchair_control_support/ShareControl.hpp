@@ -37,12 +37,12 @@ public:
             double velocity_{0};
             double yaw_rate_{0};
 
-            State next_state(const double period)
+            State next_state(const double period, const double x_offset, const double y_offset)
             {
                 State next_state;
                 next_state.yaw_ = yaw_ + yaw_rate_*period;
-                next_state.x_ = x_ + velocity_ * std::cos(yaw_ + yaw_rate_*period/2) * period;
-                next_state.y_ = y_ + velocity_ * std::sin(yaw_ + yaw_rate_*period/2) * period;
+                next_state.x_ = x_ + velocity_ * std::cos(yaw_ + yaw_rate_*period/2) * period - y_offset * yaw_rate_ * period;
+                next_state.y_ = y_ + velocity_ * std::sin(yaw_ + yaw_rate_*period/2) * period  + x_offset * yaw_rate_ * period ;
                 next_state.velocity_ = velocity_;
                 next_state.yaw_rate_ = yaw_rate_;
                 return next_state;
@@ -64,6 +64,8 @@ public:
         double max_deceleration_{0};
         double max_yaw_acceleration_{0};
     };
+
+    friend class State;
 
     ShareControl();
     void main_process(void);
@@ -119,6 +121,7 @@ public:
 
     double closest_distance_to_obstacle(const State& state);
 
+    double closest_distance_to_obstacle(const std::vector<State>& traj);
     /**
      * Calculate the next state of the robot after one time step
      * @param state reference to the current state of the robot
@@ -188,6 +191,7 @@ private:
     bool is_joystick_updated_{false};
     bool is_gap_updated_{false};
 
+
     /*Parameter to change the behavior of the DWA algorithm*/
     std::string robot_frame_{"base_footprint"}; //We consider everything with respect to robot_frame_
     double predict_time_{3};                   //Time to predict the trajectory (in second)
@@ -198,6 +202,7 @@ private:
     double period_{0.5};                        // Period of one loop of execution. (1/Frequency)
     int linear_vel_sample_size_{5};              // How many discrete linear vel point within dynamic window will be considered
     int yaw_rate_sample_size_{10};                // How many discrete yaw rate point within dynamic window will be considered
+    bool joystick_noise_{false};                // Add noise to joystick input
     rclcpp::TimerBase::SharedPtr timer_;
 };
 

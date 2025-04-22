@@ -21,6 +21,11 @@ find_package(message_filters REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(wheelchair_control_support REQUIRED)
+find_package(nav2_shared_mppi_controller REQUIRED)
+find_package(nav2_costmap_2d REQUIRED)
+find_package(nav_2d_utils REQUIRED)
+
+
 # Add Eigen as an external dependency
 find_package(Eigen3 REQUIRED)
 
@@ -55,6 +60,29 @@ ament_target_dependencies(share_control_node
 target_include_directories(share_control_node PUBLIC
   ./include
 )
+
+add_executable(shared_controller_node src/shared_controller_node.cpp)
+ament_target_dependencies(shared_controller_node
+  rclcpp 
+  geometry_msgs
+  sensor_msgs
+  nav_msgs
+  visualization_msgs
+  tf2_geometry_msgs
+  tf2
+  tf2_ros
+  wheelchair_control_support
+  nav2_shared_mppi_controller
+  nav2_costmap_2d
+  nav_2d_utils
+)
+target_include_directories(shared_controller_node PUBLIC
+  ./include
+  # ../nav2_shared_mppi_controller/include
+)
+# target_link_libraries(shared_controller_node nav2_shared_mppi_controller::shared_mppi_controller
+# )
+
 
 add_executable(intended_goal_estimator src/intended_goal_estimator.cpp)
 ament_target_dependencies(intended_goal_estimator
@@ -142,6 +170,7 @@ install(
     simple_velocity_publisher 
     footprint_visualizer 
     calculate_acceleration
+    shared_controller_node
     share_control_node
     joy_control
     odometry_listener
