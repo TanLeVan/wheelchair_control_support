@@ -23,6 +23,7 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(wheelchair_control_support REQUIRED)
 find_package(nav2_shared_mppi_controller REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
+find_package(nav2_msgs REQUIRED)
 find_package(nav_2d_utils REQUIRED)
 
 
@@ -42,6 +43,22 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
 
 # Adding executatble
+add_executable(test_global_planner src/test_global_planner.cpp)
+ament_target_dependencies(test_global_planner
+  rclcpp
+  geometry_msgs
+  sensor_msgs
+  nav_msgs
+  visualization_msgs
+  tf2_geometry_msgs
+  tf2
+  tf2_ros
+  wheelchair_control_support
+  nav2_msgs
+  nav2_costmap_2d
+  nav_2d_utils
+)
+
 add_executable(simple_velocity_publisher src/simple_velocity_publisher.cpp)
 ament_target_dependencies(simple_velocity_publisher rclcpp geometry_msgs)
 
@@ -180,6 +197,7 @@ install(
     scan_filter
     test_find_gap2
     intended_goal_estimator
+    test_global_planner
   DESTINATION lib/${PROJECT_NAME}
 )
 
