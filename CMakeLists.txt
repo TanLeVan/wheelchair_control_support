@@ -25,7 +25,7 @@ find_package(nav2_shared_mppi_controller REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(nav_2d_utils REQUIRED)
-
+find_package(wheelchair_smac_planner REQUIRED)
 
 # Add Eigen as an external dependency
 find_package(Eigen3 REQUIRED)
@@ -92,6 +92,7 @@ ament_target_dependencies(shared_controller_node
   nav2_shared_mppi_controller
   nav2_costmap_2d
   nav_2d_utils
+  wheelchair_smac_planner
 )
 target_include_directories(shared_controller_node PUBLIC
   ./include

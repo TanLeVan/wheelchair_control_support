@@ -7,7 +7,7 @@ share_control_node:
     period: 0.2               #in second. Amount of time needed to complete one cycle of vel calculation
     linear_velocity_sample_size: 7
     yaw_rate_sample_size: 20
-    joystick_noise: true
+    joystick_noise: false
     
     max_linear_vel: 0.3      # max linear velocity in x direction (0.3-1.6)(m/s) 
     min_linear_vel: -0.3      # min linear velocity. 

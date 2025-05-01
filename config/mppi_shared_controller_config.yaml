@@ -13,9 +13,9 @@ shared_controller_node:
 
 
     shared_mppi_controller:
-      time_steps: 60
+      time_steps: 120
       model_dt: 0.05
-      batch_size: 2000
+      batch_size: 3000
       vx_std: 0.3
       vy_std: 0.3
       wz_std: 0.4
@@ -29,17 +29,17 @@ shared_controller_node:
       az_max: 2.5 
       iteration_count: 1
       prune_distance: 1.7
-      temperature: 0.3
+      temperature: 0.4
       gamma: 0.015
       motion_model: "DiffDrive"
       visualize: true
       reset_period: 1.0 # (only in Humble)
-      retry_attempt_limit: 3
+      retry_attempt_limit: 1
       regenerate_noises: false
       TrajectoryVisualizer:
-        trajectory_step: 1000
-        time_step: 100
-      critics: ["ConstraintCritic", "CostCritic", "ObstaclesCritic", "GoalCritic", "GoalAngleCritic", "PreferForwardCritic", "UserSpeedCritic"]
+        trajectory_step: 500
+        time_step: 20
+      critics: ["ConstraintCritic", "CostCritic", "ObstaclesCritic", "GoalCritic", "GoalAngleCritic" , "PathAlignCritic","PreferForwardCritic", "UserSpeedCritic"]
       ConstraintCritic:
         enabled: true
         cost_power: 1
@@ -53,7 +53,16 @@ shared_controller_node:
         enabled: true
         cost_power: 1
         cost_weight: 3.0
+        threshold_to_consider: 0.8
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 16.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 4
         threshold_to_consider: 0.5
+        offset_from_furthest: 25
+        use_path_orientations: false
       PreferForwardCritic:
         enabled: false
         cost_power: 1
@@ -66,9 +75,9 @@ shared_controller_node:
         critical_weight: 20.0
         consider_footprint: true
         collision_cost: 10000.0
-        collision_margin_distance: 0.1
-        near_goal_distance: 0.1
-        inflation_radius: 0.55 # (only in Humble)
+        collision_margin_distance: 0.05
+        near_goal_distance: 0.2
+        inflation_radius: 0.5 # (only in Humble)
         cost_scaling_factor: 10.0 # (only in Humble)
       CostCritic:
         enabled: false
@@ -82,28 +91,41 @@ shared_controller_node:
       UserSpeedCritic:
         enable: true
         cost_power: 1
-        cost_weight: 4.0
+        cost_weight: 3.0
         decay_rate: 0.2
+
+    smac_planner:
+      tolerance: 0.25
+      use_sim_time: false
+      max_planning_time : 0.02
+      allow_unknown: true
+      max_on_approach_iterations: 10000
+      analytic_expansion_max_length: 0.5
+      motion_model_for_search: "DUBIN"
+      minimum_turning_radius: 0.05
+      non_straight_penalty: 1.02
+      allow_primitive_interpolation: false
+      w_smooth : 1.0
+      debug_visualizations: true
 
 local_costmap/local_costmap:
   ros__parameters: 
-    update_frequency: 20.0
-    publish_frequency: 20.0
-    footprint: "[[0.45, 0.32],[0.45,-0.32],[-0.45,-0.32],[-0.45,0.32]]"  # Robot footprint
+    update_frequency: 80.0
+    publish_frequency: 40.0
+    footprint: "[[0.75, 0.31],[0.75,-0.31],[-0.2,-0.31],[-0.2,0.31]]"  # Robot footprint
     global_frame: base_footprint
-    robot_base_frame: base_footprint
+    robot_base_frame: base_link
     use_sim_time: False
     rolling_window: True  # Enable rolling window for the local costmap
     width: 6  # Size of the local costmap (around the robot)
     height: 6
-    resolution: 0.06
+    resolution: 0.03
     plugins: ["obstacle_layer", "inflation_layer"]  # Add desired layers
     obstacle_layer:
       plugin: "nav2_costmap_2d::ObstacleLayer"
       enabled: true
       footprint_clearing_enabled: false
       observation_sources: scan  # Subscribe to scan data
-      footprint_clearing_enabled: true
       max_obstacle_height: 2.0
       combination_method: 0
       scan:
@@ -121,7 +143,7 @@ local_costmap/local_costmap:
     inflation_layer:
       plugin: "nav2_costmap_2d::InflationLayer"
       enabled: true
-      inflation_radius: 0.55
-      cost_scaling_factor: 1.0
+      inflation_radius: 0.5
+      cost_scaling_factor: 10.0
       inflate_unknown: false
       inflate_around_unknown: true

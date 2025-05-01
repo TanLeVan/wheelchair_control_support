@@ -34,6 +34,7 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
     // Initializing costmap and controller
     costmap_ros_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("local_costmap", std::string{get_namespace()}, "local_costmap");
     mppi_controller_ = std::make_shared<nav2_shared_mppi_controller::MPPISharedController>();
+    smac_planner_ = std::make_shared<wheelchair_smac_planner::SmacPlannerHybrid>();
 
     //Initializing subscriber and publisher
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>("/whill/odom", rclcpp::SensorDataQoS(),
@@ -44,6 +45,7 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
                                                     std::bind(&SharedControllerNode::gap_callback, this, std::placeholders::_1));
     joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/controller/joy", 1);
     traj_visualizer_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/user_trajectory_visualization", 1);
+    plan_publisher_ = this->create_publisher<nav_msgs::msg::Path>("/planned_path", 1);
 
     timer_ = this->create_wall_timer(std::chrono::duration<double>(period_), std::bind(&SharedControllerNode::main_process, this));
 }
@@ -59,6 +61,7 @@ void SharedControllerNode::configure()
 
     //Configure the controller
     mppi_controller_->configure(node, "shared_mppi_controller",costmap_ros_->getTfBuffer(), costmap_ros_);
+    smac_planner_->configure(node, "smac_planner", costmap_ros_->getTfBuffer(), costmap_ros_);
 }
 
 void SharedControllerNode::activate()
@@ -66,6 +69,7 @@ void SharedControllerNode::activate()
     // Activate the costmap
     costmap_ros_->activate();
     mppi_controller_->activate();
+    smac_planner_->activate();
 }
 
 SharedControllerNode::~SharedControllerNode()
@@ -79,6 +83,9 @@ SharedControllerNode::~SharedControllerNode()
 
     mppi_controller_->deactivate();
     mppi_controller_->cleanup();
+
+    smac_planner_->deactivate();
+    smac_planner_->cleanup();
 }
 
 
@@ -180,18 +187,47 @@ sensor_msgs::msg::Joy   SharedControllerNode::calculate_joy_from_velocity(const 
     return joy;
 }
 
-geometry_msgs::msg::Pose SharedControllerNode::convert_gap_to_pose(const wheelchair_control_support::msg::Gap & gap)
+geometry_msgs::msg::PoseStamped SharedControllerNode::convert_gap_to_pose(const wheelchair_control_support::msg::Gap & gap)
 {
-    geometry_msgs::msg::Pose gap_pose{};
-    gap_pose.position.x = gap.middle_point_x;
-    gap_pose.position.y = gap.middle_point_y;
-    gap_pose.position.z = 0.0;
+    geometry_msgs::msg::PoseStamped gap_pose{};
+    gap_pose.header.frame_id = "base_footprint";
+    gap_pose.header.stamp = joystick_.header.stamp; //Stamp same as input joystick
+
+    gap_pose.pose.position.z = 0.0;
+    gap_pose.pose.position.x = gap.middle_point_x;
+    gap_pose.pose.position.y = gap.middle_point_y;
 
     double angle = std::atan2(gap.left_point_x - gap.right_point_x, gap.right_point_y - gap.left_point_y);
-    gap_pose.orientation =  nav2_util::geometry_utils::orientationAroundZAxis(angle);
+    gap_pose.pose.orientation =  nav2_util::geometry_utils::orientationAroundZAxis(angle);
 
     return gap_pose;    
 }
+
+bool SharedControllerNode::validatePath(const nav_msgs::msg::Path &path)
+{
+    if(path.poses.size() == 0)
+    {
+        // RCLCPP_ERROR(get_logger(), "Invalide path");
+        return false;
+    }
+    else
+    {
+        // RCLCPP_ERROR(get_logger(), "Valid path");
+        return true;
+    }
+}
+
+void SharedControllerNode::computePathToPose(const geometry_msgs::msg::PoseStamped &goal, nav_msgs::msg::Path& path)
+{
+    path.header.frame_id = "base_footprint";
+    path.header.stamp = joystick_.header.stamp; //Stamp same as input joystick
+
+    geometry_msgs::msg::PoseStamped start;
+    costmap_ros_->getRobotPose(start);
+
+    path = smac_planner_->createPlan(start, goal);
+}
+
 
 void SharedControllerNode::user_trajectory_visualization()
 {
@@ -240,7 +276,6 @@ void SharedControllerNode::main_process()
         {
             cmd_vel.linear.x = 0;
             cmd_vel.angular.z = 0; 
-            is_cmd_vel_found = true;  
         }
         else{
             auto goal = convert_gap_to_pose(observed_gap_);
@@ -251,15 +286,26 @@ void SharedControllerNode::main_process()
                 return;
             }
             geometry_msgs::msg::Twist robot_vel = odom_.twist.twist;
-            cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, user_vel);
-            is_cmd_vel_found = true;
+            nav_msgs::msg::Path path;
+            computePathToPose(goal, path);
+            try {
+                if (validatePath(path)) {
+                    cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal.pose, observed_gap_.confident, path, user_vel);
+                    plan_publisher_->publish(path);
+                }
+                else {
+                    cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal.pose, observed_gap_.confident, user_vel);
+                }
+            } catch (const std::runtime_error& e) {
+                // Log the error message (optional)
+                RCLCPP_ERROR(this->get_logger(), "Caught exception in computeVelocityCommands: %s", e.what());
+                // Set cmd_vel to 0 if an exception occurs
+                cmd_vel.linear.x = -0.05;
+                cmd_vel.angular.z = 0; 
+            }
         }
 
-        if (!is_cmd_vel_found)
-        {
-            RCLCPP_ERROR(get_logger(), "Failed to find command velocity");
-            return;
-        }
+     
         // Publish the velocity command
         auto joy_cmd = calculate_joy_from_velocity(cmd_vel);
         joy_pub_->publish(joy_cmd);

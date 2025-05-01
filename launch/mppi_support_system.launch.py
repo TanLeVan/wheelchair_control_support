@@ -32,24 +32,36 @@ def generate_launch_description():
 
     list = [
 
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource(
-        #         [this_pkg_share_dir,'/launch', '/whill_modelc.launch.py']
-        #         )
-        # ),
-        # ExecuteProcess(
-        #     cmd=service_command
-        # ),
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource(
-        #         [this_pkg_share_dir, '/launch', '/start_2_lidar.launch.py']
-        #     )
-        # ),
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource(
-        #         [this_pkg_share_dir, '/launch', '/merge_lidar.launch.py']
-        #     )
-        # ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                [this_pkg_share_dir,'/launch', '/whill_modelc.launch.py']
+                )
+        ),
+        ExecuteProcess(
+            cmd=service_command
+        ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                [this_pkg_share_dir, '/launch', '/start_2_lidar.launch.py']
+            )
+        ),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                [this_pkg_share_dir, '/launch', '/merge_lidar.launch.py']
+            )
+        ),
+        Node(
+            package='wheelchair_control_support',
+            executable='scan_filter.py',
+            name='scan_filter',
+            output='screen'
+        ),
+        Node(
+            package='wheelchair_control_support',
+            executable='intended_goal_estimator',
+            name='intended_goal_estimator'
+            # remappings=[("/filtered_scan", "/scan")]       
+        ),  
         Node(
             package='wheelchair_control_support',
             executable='shared_controller_node',
@@ -58,7 +70,7 @@ def generate_launch_description():
             parameters=[
                 share_control_config_path
             ]
-            ),
+        ),
          # Static transform publisher
         Node(
             package='tf2_ros',

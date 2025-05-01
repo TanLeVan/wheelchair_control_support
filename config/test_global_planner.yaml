@@ -5,37 +5,39 @@ planner_server:
     service_introspection_mode: "disabled"
     planner_plugins: ['GridBased']
     GridBased:
-      plugin: 'nav2_smac_planner/SmacPlannerLattice'
-      tolerance: 0.1
+      plugin: 'nav2_smac_planner/SmacPlannerHybrid'
+      tolerance: 0.25
       use_sim_time: false
-      downsample_costmap: false
-      downsample_factor: 1
-      max_planning_time : 0.05
+      max_planning_time : 0.02
       allow_unknown: true
-      max_on_approach_iterations: 10
-      allow_unknown: false
-      rotation_penalty: 0.0
+      max_on_approach_iterations: 10000
+      analytic_expansion_max_length: 0.5
+      motion_model_for_search: "DUBIN"
+      minimum_turning_radius: 0.05
+      non_straight_penalty: 1.02
+      allow_primitive_interpolation: false
+      w_smooth : 1.0
+      debug_visualizations: true
 
 
 global_costmap/global_costmap:
   ros__parameters: 
-    update_frequency: 20.0
-    publish_frequency: 20.0
-    footprint: "[[0.45, 0.32],[0.45,-0.32],[-0.45,-0.32],[-0.45,0.32]]"  # Robot footprint
+    update_frequency: 80.0
+    publish_frequency: 40.0
+    footprint: "[[0.75, 0.31],[0.75,-0.31],[-0.2,-0.31],[-0.2,0.31]]"  # Robot footprint
     global_frame: base_footprint
-    robot_base_frame: base_footprint
+    robot_base_frame: base_link
     use_sim_time: False
     rolling_window: True  # Enable rolling window for the local costmap
     width: 6  # Size of the local costmap (around the robot)
     height: 6
-    resolution: 0.06
+    resolution: 0.03
     plugins: ["obstacle_layer", "inflation_layer"]  # Add desired layers
     obstacle_layer:
       plugin: "nav2_costmap_2d::ObstacleLayer"
       enabled: true
       footprint_clearing_enabled: false
       observation_sources: scan  # Subscribe to scan data
-      footprint_clearing_enabled: true
       max_obstacle_height: 2.0
       combination_method: 0
       scan:
@@ -43,7 +45,7 @@ global_costmap/global_costmap:
         sensor_frame: base_footprint
         obstacle_max_range: 3.0
         obstacle_min_range: 0.0
-        raytrace_max_range: 5.0
+        raytrace_max_range: 6.0
         raytrace_min_range: 0.0
         max_obstacle_height: 2.0
         min_obstacle_height: 0.0
@@ -53,7 +55,8 @@ global_costmap/global_costmap:
     inflation_layer:
       plugin: "nav2_costmap_2d::InflationLayer"
       enabled: true
-      inflation_radius: 0.3
-      cost_scaling_factor: 1.0
+      inflation_radius: 0.5
+      cost_scaling_factor: 10.0
       inflate_unknown: false
       inflate_around_unknown: true
+

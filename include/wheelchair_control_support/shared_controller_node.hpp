@@ -6,11 +6,13 @@
 #include "wheelchair_control_support/msg/gap.hpp"
 
 #include "sensor_msgs/msg/joy.hpp"
+#include "nav_msgs/msg/path.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/pose.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_shared_mppi_controller/controller.hpp"
+#include "wheelchair_smac_planner/smac_planner_hybrid.hpp"
 
 
 using nav2_shared_mppi_controller::MPPISharedController;
@@ -58,10 +60,13 @@ private:
      * @return The converted pose
      * @details The gap is converted to a pose with the middle point of the gap as the position and the yaw angle is set perpendicular to gap.
      */
-    geometry_msgs::msg::Pose convert_gap_to_pose(const wheelchair_control_support::msg::Gap & gap);
+    geometry_msgs::msg::PoseStamped convert_gap_to_pose(const wheelchair_control_support::msg::Gap & gap);
+
+    bool validatePath(const nav_msgs::msg::Path &path);
 
     void user_trajectory_visualization();
 
+    void computePathToPose(const geometry_msgs::msg::PoseStamped &goal, nav_msgs::msg::Path& path);    
 
     // The controller needs a costmap node
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -69,6 +74,11 @@ private:
 
     //Controller
     std::shared_ptr<nav2_shared_mppi_controller::MPPISharedController> mppi_controller_;
+
+    //Global Planner
+    std::shared_ptr<wheelchair_smac_planner::SmacPlannerHybrid> smac_planner_;
+    rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr plan_publisher_;
+
 
     // Subscriber and publisher
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_; //Sensor QoS should be use
