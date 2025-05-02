@@ -269,7 +269,8 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
     const std::vector<State>& traj)
 {
     const double w_user = 1.0;
-    const double w_angle = (gap.confident>0)?0.3:0.0; //0.3
+     const double w_angle = (gap.confident>0)?0.3:0.0; //0.3
+    // const double w_angle = 0;
     const double w_distance = w_angle;
     const double w_obstacle = 0.1;
     const double k = 5;

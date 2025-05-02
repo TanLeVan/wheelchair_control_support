@@ -1,7 +1,7 @@
 shared_controller_node:
   ros__parameters:
     controller_frequency: 20.          #in second. Amount of time needed to complete one cycle of vel calculation
-    joystick_noise: false
+    joystick_noise: true
     max_linear_vel: 0.3      # max linear velocity in x direction (0.3-1.6)(m/s) 
     min_linear_vel: -0.3      # min linear velocity. 
                                # Can be negative in case of backward movement . (-0.3 - -0.8)(m/s)
@@ -29,7 +29,7 @@ shared_controller_node:
       az_max: 2.5 
       iteration_count: 1
       prune_distance: 1.7
-      temperature: 0.4
+      temperature: 0.5
       gamma: 0.015
       motion_model: "DiffDrive"
       visualize: true
@@ -45,7 +45,7 @@ shared_controller_node:
         cost_power: 1
         cost_weight: 4.0
       GoalCritic:
-        enabled: true
+        enabled: false
         cost_power: 2
         cost_weight: 4.0
         threshold_to_consider: 3.0
@@ -53,7 +53,7 @@ shared_controller_node:
         enabled: true
         cost_power: 1
         cost_weight: 3.0
-        threshold_to_consider: 0.8
+        threshold_to_consider: 3.0
       PathAlignCritic:
         enabled: true
         cost_power: 1
@@ -110,16 +110,16 @@ shared_controller_node:
 
 local_costmap/local_costmap:
   ros__parameters: 
-    update_frequency: 80.0
-    publish_frequency: 40.0
-    footprint: "[[0.75, 0.31],[0.75,-0.31],[-0.2,-0.31],[-0.2,0.31]]"  # Robot footprint
+    update_frequency: 40.0
+    publish_frequency: 10.0
+    footprint: "[[0.8, 0.30],[0.8,-0.30],[-0.2,-0.30],[-0.2,0.30]]"  # Robot footprint
     global_frame: base_footprint
     robot_base_frame: base_link
     use_sim_time: False
     rolling_window: True  # Enable rolling window for the local costmap
     width: 6  # Size of the local costmap (around the robot)
     height: 6
-    resolution: 0.03
+    resolution: 0.05
     plugins: ["obstacle_layer", "inflation_layer"]  # Add desired layers
     obstacle_layer:
       plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -129,7 +129,7 @@ local_costmap/local_costmap:
       max_obstacle_height: 2.0
       combination_method: 0
       scan:
-        topic: /scan
+        topic: scan
         sensor_frame: base_footprint
         obstacle_max_range: 3.0
         obstacle_min_range: 0.0

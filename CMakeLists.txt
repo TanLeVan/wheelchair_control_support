@@ -207,6 +207,7 @@ install(PROGRAMS
 	script/joy_visualizer.py
   script/test_scan_filter_py.py
   script/scan_filter.py
+  script/test_gap_circle_viz.py
 	DESTINATION lib/${PROJECT_NAME}
 	)
 

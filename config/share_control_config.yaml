@@ -4,10 +4,10 @@ share_control_node:
     predict_timestep: 0.2     #double
     scan_to_obstacle_range: 2. #double 
     skip_point:  2             #int
-    period: 0.2               #in second. Amount of time needed to complete one cycle of vel calculation
+    period: 0.1               #in second. Amount of time needed to complete one cycle of vel calculation
     linear_velocity_sample_size: 7
     yaw_rate_sample_size: 20
-    joystick_noise: false
+    joystick_noise: true
     
     max_linear_vel: 0.3      # max linear velocity in x direction (0.3-1.6)(m/s) 
     min_linear_vel: -0.3      # min linear velocity. 
