@@ -4,6 +4,8 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "wheelchair_control_support/msg/gap.hpp"
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include "sensor_msgs/msg/joy.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -69,6 +71,10 @@ private:
 
     //Controller
     std::shared_ptr<nav2_shared_mppi_controller::MPPISharedController> mppi_controller_;
+
+    // Tf stuff
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
     // Subscriber and publisher
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_; //Sensor QoS should be use

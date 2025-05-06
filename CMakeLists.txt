@@ -20,7 +20,6 @@ find_package(tf2_ros REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(wheelchair_control_support REQUIRED)
 find_package(nav2_shared_mppi_controller REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(nav_2d_utils REQUIRED)
@@ -29,7 +28,8 @@ find_package(nav_2d_utils REQUIRED)
 # Add Eigen as an external dependency
 find_package(Eigen3 REQUIRED)
 
-include_directories(include
+include_directories(
+  include 
   ./include/json/include/
 )
 
@@ -55,8 +55,8 @@ ament_target_dependencies(share_control_node
   tf2_geometry_msgs
   tf2
   tf2_ros
-  wheelchair_control_support
 )
+rosidl_target_interfaces(share_control_node ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_include_directories(share_control_node PUBLIC
   ./include
 )
@@ -71,11 +71,11 @@ ament_target_dependencies(shared_controller_node
   tf2_geometry_msgs
   tf2
   tf2_ros
-  wheelchair_control_support
   nav2_shared_mppi_controller
   nav2_costmap_2d
   nav_2d_utils
 )
+rosidl_target_interfaces(shared_controller_node ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_include_directories(shared_controller_node PUBLIC
   ./include
   # ../nav2_shared_mppi_controller/include
@@ -91,13 +91,13 @@ ament_target_dependencies(intended_goal_estimator
   sensor_msgs
   message_filters
   ament_index_cpp
-  wheelchair_control_support
   visualization_msgs
   geometry_msgs
   tf2_geometry_msgs
   tf2
   tf2_ros
 )
+rosidl_target_interfaces(intended_goal_estimator ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_include_directories(intended_goal_estimator PUBLIC
   ./include
 )
@@ -199,7 +199,10 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-
+install(
+  DIRECTORY include/wheelchair_control_support
+  DESTINATION include
+)
 
 
 
@@ -215,4 +218,5 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+ament_export_include_directories(include)
 ament_package()

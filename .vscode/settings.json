@@ -1,5 +1,6 @@
 {
     "C_Cpp.errorSquiggles": "disabled",
+    "cmake.configureOnOpen": false,
     "files.associations": {
         "cctype": "cpp",
         "clocale": "cpp",

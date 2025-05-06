@@ -5,6 +5,7 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_util/node_thread.hpp"
+#include "nav2_util/robot_utils.hpp"
 #include "wheelchair_control_support/shared_controller_node.hpp"
 
 SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_node")
@@ -32,7 +33,7 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
     whill_dynamic_.max_deceleration_ = this->get_parameter("max_decceleration").as_double();
 
     // Initializing costmap and controller
-    costmap_ros_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("local_costmap", std::string{get_namespace()}, "local_costmap");
+    // costmap_ros_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("local_costmap", std::string{get_namespace()}, "local_costmap");
     mppi_controller_ = std::make_shared<nav2_shared_mppi_controller::MPPISharedController>();
 
     //Initializing subscriber and publisher
@@ -44,6 +45,8 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
                                                     std::bind(&SharedControllerNode::gap_callback, this, std::placeholders::_1));
     joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/controller/joy", 1);
     traj_visualizer_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/user_trajectory_visualization", 1);
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
     timer_ = this->create_wall_timer(std::chrono::duration<double>(period_), std::bind(&SharedControllerNode::main_process, this));
 }
@@ -53,29 +56,22 @@ void SharedControllerNode::configure()
     std::weak_ptr<rclcpp::Node> node = shared_from_this();
 
     // Configure the costmap
-    costmap_ros_->configure();
-    costmap_thread_ = std::make_unique<nav2_util::NodeThread>(costmap_ros_);
+    // costmap_ros_->configure();
+    // costmap_thread_ = std::make_unique<nav2_util::NodeThread>(costmap_ros_);
 
 
     //Configure the controller
-    mppi_controller_->configure(node, "shared_mppi_controller",costmap_ros_->getTfBuffer(), costmap_ros_);
+    mppi_controller_->configure(node, "shared_mppi_controller", tf_buffer_);
 }
 
 void SharedControllerNode::activate()
 {
-    // Activate the costmap
-    costmap_ros_->activate();
     mppi_controller_->activate();
 }
 
 SharedControllerNode::~SharedControllerNode()
 {
-    costmap_thread_.reset();
 
-    // Deactivate and destroy the costmap
-    costmap_ros_->stop();  // optional but safe if implemented
-    costmap_ros_->deactivate();
-    costmap_ros_->cleanup();
 
     mppi_controller_->deactivate();
     mppi_controller_->cleanup();
@@ -245,11 +241,11 @@ void SharedControllerNode::main_process()
         else{
             auto goal = convert_gap_to_pose(observed_gap_);
             geometry_msgs::msg::PoseStamped robot_pose;
-            if(!costmap_ros_->getRobotPose(robot_pose))
-            {
-                RCLCPP_ERROR(get_logger(), "Failed to get robot pose");
-                return;
-            }
+            nav2_util::getCurrentPose(
+                robot_pose, *tf_buffer_,
+                "base_footprint", "base_link");
+
+
             geometry_msgs::msg::Twist robot_vel = odom_.twist.twist;
             cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, user_vel);
             is_cmd_vel_found = true;

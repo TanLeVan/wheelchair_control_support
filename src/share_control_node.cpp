@@ -148,7 +148,7 @@ void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
         angle += scan.angle_increment * skip_point_;
         /**Tranform the pose from lidar coordinate to robot coordinate (/base_footprint)**/
         if (lidar_frame!=robot_frame_){
-            try
+            try 
             {
                 geometry_msgs::msg::TransformStamped to_robot_frame = tf_buffer_->lookupTransform(
                     robot_frame_, lidar_frame,
