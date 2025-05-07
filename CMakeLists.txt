@@ -23,6 +23,7 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(nav2_shared_mppi_controller REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
 find_package(nav_2d_utils REQUIRED)
+find_package(wheelchair_control_support REQUIRED)
 
 
 # Add Eigen as an external dependency
@@ -55,8 +56,8 @@ ament_target_dependencies(share_control_node
   tf2_geometry_msgs
   tf2
   tf2_ros
+  wheelchair_control_support
 )
-rosidl_target_interfaces(share_control_node ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_include_directories(share_control_node PUBLIC
   ./include
 )
@@ -74,8 +75,8 @@ ament_target_dependencies(shared_controller_node
   nav2_shared_mppi_controller
   nav2_costmap_2d
   nav_2d_utils
+  wheelchair_control_support
 )
-rosidl_target_interfaces(shared_controller_node ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_include_directories(shared_controller_node PUBLIC
   ./include
   # ../nav2_shared_mppi_controller/include
@@ -96,8 +97,8 @@ ament_target_dependencies(intended_goal_estimator
   tf2_geometry_msgs
   tf2
   tf2_ros
+  wheelchair_control_support
 )
-rosidl_target_interfaces(intended_goal_estimator ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_include_directories(intended_goal_estimator PUBLIC
   ./include
 )

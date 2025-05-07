@@ -70,6 +70,30 @@ public:
         return distance;
     }
 
+    //Return the square of the distance from footprint to a point
+    // Return -1 if point inside footprint
+    double square_distance_from_point_to_footprint(const double x, const double y)
+    {
+        double x_wheelchair = x*std::cos(theta_)+y*std::sin(theta_) - center_x_*std::cos(theta_) - center_y_*std::sin(theta_);
+        double y_wheelchair = -x*std::sin(theta_)+y*std::cos(theta_) + center_x_*std::sin(theta_) - center_y_*std::cos(theta_);
+
+          // Calculate the distance to the nearest edge in both directions
+        double dx = std::abs(x_wheelchair) - width_/2;  // Calculate distance from left or right edge
+        double dy = std::abs(y_wheelchair) - height_/2; // Calculate distance from top or bottom edge
+        double distance{};
+        // If the point is inside the footprint, return negative distances
+        if (dx < 0 && dy < 0)
+        {
+            distance = -1; //return -1 if point inside footprint 
+        }
+        else{
+            distance = dx * dx + dy * dy;
+        }
+
+        // Return the Euclidean distance to the nearest edge (non-zero if outside the footprint)
+        return distance;
+    }
+
     visualization_msgs::msg::Marker generate_footprint_marker(std::string frame_id, int marker_id)
     {
         auto marker = visualization_msgs::msg::Marker();
