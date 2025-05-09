@@ -143,6 +143,12 @@ target_include_directories(test_find_gap2 PUBLIC
   ./include
 )
 
+add_executable(test_footprint src/test_footprint.cpp)
+target_include_directories(test_footprint PUBLIC
+  ./include
+)
+ament_target_dependencies(test_footprint rclcpp visualization_msgs)
+
 add_executable(test_egocircle_map src/test_egocircle_map.cpp)
 ament_target_dependencies(test_egocircle_map 
   rclcpp 
@@ -156,6 +162,7 @@ target_include_directories(test_egocircle_map PUBLIC
   ./include
 )
 
+
 add_executable(scan_filter src/scan_filter.cpp)
 ament_target_dependencies(scan_filter rclcpp sensor_msgs)
 target_link_libraries(scan_filter ${PCL_LIBRARIES})
@@ -168,6 +175,7 @@ target_link_libraries(scan_filter ${PCL_LIBRARIES})
 
 install(
   TARGETS 
+    test_footprint
     simple_velocity_publisher 
     footprint_visualizer 
     calculate_acceleration
