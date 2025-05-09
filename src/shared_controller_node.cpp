@@ -229,32 +229,31 @@ void SharedControllerNode::main_process()
     if (is_odom_updated_ && is_joystick_updated_ && is_gap_updated_)
     {
         geometry_msgs::msg::Twist cmd_vel;
-        bool is_cmd_vel_found = false;
         auto user_vel = calculate_velocity_from_joy(joystick_);
         user_trajectory_visualization();
         if(abs(user_vel.linear.x) <= 1e-4 && abs(user_vel.angular.z) <= 1e-4) //Stop safely
         {
             cmd_vel.linear.x = 0;
             cmd_vel.angular.z = 0; 
-            is_cmd_vel_found = true;  
         }
         else{
-            auto goal = convert_gap_to_pose(observed_gap_);
-            geometry_msgs::msg::PoseStamped robot_pose;
-            nav2_util::getCurrentPose(
-                robot_pose, *tf_buffer_,
-                "base_footprint", "base_link");
+            try{
+                auto goal = convert_gap_to_pose(observed_gap_);
+                geometry_msgs::msg::PoseStamped robot_pose;
+                nav2_util::getCurrentPose(
+                    robot_pose, *tf_buffer_,
+                    "base_footprint", "base_link");
 
-
-            geometry_msgs::msg::Twist robot_vel = odom_.twist.twist;
-            cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, user_vel);
-            is_cmd_vel_found = true;
-        }
-
-        if (!is_cmd_vel_found)
-        {
-            RCLCPP_ERROR(get_logger(), "Failed to find command velocity");
-            return;
+                geometry_msgs::msg::Twist robot_vel = odom_.twist.twist;
+                cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, user_vel);
+            }
+            catch (const std::runtime_error& e) {
+                    // Log the error message (optional)
+                    RCLCPP_ERROR(this->get_logger(), "Caught exception in computeVelocityCommands: %s", e.what());
+                    // Set cmd_vel to 0 if an exception occurs
+                    cmd_vel.linear.x = -0.05;
+                    cmd_vel.angular.z = 0; 
+            }
         }
         // Publish the velocity command
         auto joy_cmd = calculate_joy_from_velocity(cmd_vel);
