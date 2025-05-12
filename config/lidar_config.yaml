@@ -43,18 +43,18 @@ ros2_laser_scan_merger:
     flip2: false
     inverse1: false
     inverse2: false
-    laser1Alpha: 90.0
-    laser1AngleMax: 80.0
-    laser1AngleMin: -115.0
+    laser1Alpha: 89.0
+    laser1AngleMax: 90.0
+    laser1AngleMin: -120.0
     laser1B: 0
     laser1G: 0
     laser1R: 255
     laser1XOff: 0.5
     laser1YOff: 0.255
     laser1ZOff: 0.28
-    laser2Alpha: -90.0
-    laser2AngleMax: 115.0
-    laser2AngleMin: -80.0
+    laser2Alpha: -89.0
+    laser2AngleMax: 120.0
+    laser2AngleMin: -90.0
     laser2B: 255
     laser2G: 0
     laser2R: 0
