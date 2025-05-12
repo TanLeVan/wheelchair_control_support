@@ -14,6 +14,8 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
 
 
     this->declare_parameter("joystick_noise", rclcpp::PARAMETER_BOOL);
+    this->declare_parameter("noise_freq", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("noise_std", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("max_linear_vel", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("min_linear_vel", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("max_yaw_rate", rclcpp::PARAMETER_DOUBLE);
@@ -24,6 +26,8 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
 
 
     joystick_noise_    = this->get_parameter("joystick_noise").as_bool();
+    noise_freq_       = this->get_parameter("noise_freq").as_double();
+    noise_std_        = this->get_parameter("noise_std").as_double();
     period_           = 1/this->get_parameter("controller_frequency").as_double();
     whill_dynamic_.max_linear_vel_ = this->get_parameter("max_linear_vel").as_double();
     whill_dynamic_.min_linear_vel_ = this->get_parameter("min_linear_vel").as_double();
@@ -31,6 +35,10 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
     whill_dynamic_.max_yaw_acceleration_ = this->get_parameter("max_yaw_acceleration").as_double();
     whill_dynamic_.max_acceleration_ = this->get_parameter("max_acceleration").as_double();
     whill_dynamic_.max_deceleration_ = this->get_parameter("max_decceleration").as_double();
+
+    if(joystick_noise_){
+        noise_generator_ = std::make_unique<NoiseGenerator>(noise_freq_, 0, noise_std_);
+    }
 
     // Initializing costmap and controller
     // costmap_ros_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("local_costmap", std::string{get_namespace()}, "local_costmap");
@@ -105,37 +113,32 @@ void SharedControllerNode::gap_callback(const wheelchair_control_support::msg::G
 geometry_msgs::msg::Twist   SharedControllerNode::calculate_velocity_from_joy(sensor_msgs::msg::Joy & joy)
 {
     geometry_msgs::msg::Twist joy_vel{};
-    if (joystick_noise_)
-    {
-        /*Add noise to joystick*/
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::normal_distribution<double> noise(0, 0.4);
-        joy.axes[0] += noise(gen);
-        joy.axes[1] += noise(gen);
-
-        /*Limit the joystick value*/
-        if (joy.axes[0] > 1)
-        {
-            joy.axes[0] = 1;
-        }
-        else if (joy.axes[0] < -1)
-        {
-            joy.axes[0] = -1;
-        }
-        if (joy.axes[1] > 1)
-        {
-            joy.axes[1] = 1;
-        }
-        else if (joy.axes[1] < -1)
-        {
-            joy.axes[1] = -1;
-        }
-    }
-    
     if (is_joystick_updated_)
     {
+        if (joystick_noise_)
+        {
+            /*Add noise to joystick*/
+            joy.axes[0] += noise_generator_->getRandomValues().first;
+            joy.axes[1] += noise_generator_->getRandomValues().second;
 
+            /*Limit the joystick value*/
+            if (joy.axes[0] > 1)
+            {
+                joy.axes[0] = 1;
+            }
+            else if (joy.axes[0] < -1)
+            {
+                joy.axes[0] = -1;
+            }
+            if (joy.axes[1] > 1)
+            {
+                joy.axes[1] = 1;
+            }
+            else if (joy.axes[1] < -1)
+            {
+                joy.axes[1] = -1;
+            }
+        }
         //Linear velocity
         /*Forward movement*/
         if (joy.axes[1] >= 0)

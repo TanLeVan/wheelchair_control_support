@@ -11,6 +11,7 @@
 
 #include "wheelchair_control_support/AbstractFootprint.hpp"
 #include "wheelchair_control_support/msg/gap.hpp"
+#include "wheelchair_control_support/NoiseGenerator.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
@@ -162,7 +163,10 @@ public:
      * **/
     void publish_vel_smooth(int no_step);
 
+    double user_speed_cost(const double linear_vel, const double yaw_rate, const double user_linear_vel, const double user_yaw_rate);
+
 private:
+    std::unique_ptr<NoiseGenerator> noise_generator_;
     sensor_msgs::msg::LaserScan scan_;
     nav_msgs::msg::Odometry odom_;
     sensor_msgs::msg::Joy joystick_;
@@ -203,6 +207,12 @@ private:
     int linear_vel_sample_size_{5};              // How many discrete linear vel point within dynamic window will be considered
     int yaw_rate_sample_size_{10};                // How many discrete yaw rate point within dynamic window will be considered
     bool joystick_noise_{false};                // Add noise to joystick input
+    double noise_freq_{5};                  // Frequency of noise generation
+    double noise_std_{0.4};                   // Mean of noise
+    double user_weight_{1.0};
+    double linear_speed_weight_{1.0};
+    double angular_speed_weight_{1.0};
+
     rclcpp::TimerBase::SharedPtr timer_;
 };
 

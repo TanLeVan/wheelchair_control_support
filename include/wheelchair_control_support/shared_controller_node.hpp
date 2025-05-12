@@ -4,6 +4,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "wheelchair_control_support/msg/gap.hpp"
+#include "wheelchair_control_support/NoiseGenerator.hpp"
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -64,10 +65,9 @@ private:
 
     void user_trajectory_visualization();
 
-
-    // The controller needs a costmap node
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
-    std::unique_ptr<nav2_util::NodeThread> costmap_thread_;
+        
+    rclcpp::TimerBase::SharedPtr timer_;
+    std::unique_ptr<NoiseGenerator> noise_generator_;
 
     //Controller
     std::shared_ptr<nav2_shared_mppi_controller::MPPISharedController> mppi_controller_;
@@ -90,12 +90,13 @@ private:
     bool is_joystick_updated_{false};
     bool is_gap_updated_{false};
 
-    //For experiment. Add noise to joystick input to simulate patient with hand tremor
+    // Parameters
     bool joystick_noise_{false};                // Add noise to joystick input
-
+    double noise_freq_{5};                  // Frequency of noise generation
+    double noise_std_{0.4}; 
     WhillDynamic whill_dynamic_; // Whill dynamic parameters
-    double period_{0.1};                    
-    rclcpp::TimerBase::SharedPtr timer_;
+    double period_{0.1}; 
+    
 };
 
 

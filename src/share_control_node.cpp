@@ -35,6 +35,11 @@ ShareControl::ShareControl()
     this->declare_parameter("rectangle_footprint.width", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("footprint_radius", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("joystick_noise", rclcpp::PARAMETER_BOOL);
+    this->declare_parameter("user_weight", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("linear_speed_weight", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("angular_speed_weight", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("noise_freq", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("noise_std", rclcpp::PARAMETER_DOUBLE);
 
     predict_time_           = this->get_parameter("predict_time").as_double();
     predict_timestep_       = this->get_parameter("predict_timestep").as_double();
@@ -44,6 +49,13 @@ ShareControl::ShareControl()
     linear_vel_sample_size_ = this->get_parameter("linear_velocity_sample_size").as_int();
     yaw_rate_sample_size_   = this->get_parameter("yaw_rate_sample_size").as_int();
     joystick_noise_         = this->get_parameter("joystick_noise").as_bool();
+    user_weight_            = this->get_parameter("user_weight").as_double();
+    noise_freq_            = this->get_parameter("noise_freq").as_double();
+    noise_std_             = this->get_parameter("noise_std").as_double();
+    linear_speed_weight_    = this->get_parameter("linear_speed_weight").as_double();
+    angular_speed_weight_   = this->get_parameter("angular_speed_weight").as_double();
+
+
     whill_dynamic_.max_linear_vel_ = this->get_parameter("max_linear_vel").as_double();
     whill_dynamic_.min_linear_vel_ = this->get_parameter("min_linear_vel").as_double();
     whill_dynamic_.max_yaw_rate_ = this->get_parameter("max_yaw_rate").as_double();
@@ -64,6 +76,11 @@ ShareControl::ShareControl()
             footprint_ptr_ = std::make_unique<CircularFootprint>(circle_footprint_radius);
         }
     }
+    if(joystick_noise_)
+    {
+        noise_generator_ = std::make_unique<NoiseGenerator>(noise_freq_, 0, noise_std_);
+    }
+
     /*Initializing tf listener*/
     tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -174,51 +191,46 @@ void ShareControl::scan_to_obstacle(const sensor_msgs::msg::LaserScan &scan)
 geometry_msgs::msg::Twist ShareControl::calculate_velocity_from_joy()
 {
     geometry_msgs::msg::Twist joy_vel{};
-    if (joystick_noise_)
-    {
-        /*Add noise to joystick*/
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::normal_distribution<double> noise(0, 0.4);
-        joystick_.axes[0] += noise(gen);
-        joystick_.axes[1] += noise(gen);
-
-        /*Limit the joystick value*/
-        if (joystick_.axes[0] > 1)
-        {
-            joystick_.axes[0] = 1;
-        }
-        else if (joystick_.axes[0] < -1)
-        {
-            joystick_.axes[0] = -1;
-        }
-        if (joystick_.axes[1] > 1)
-        {
-            joystick_.axes[1] = 1;
-        }
-        else if (joystick_.axes[1] < -1)
-        {
-            joystick_.axes[1] = -1;
-        }
-    }
-    
     if (is_joystick_updated_)
     {
-
-        //Linear velocity
-        /*Forward movement*/
-        if (joystick_.axes[1] >= 0)
+        if (joystick_noise_)
         {
-            joy_vel.linear.x = joystick_.axes[1] * whill_dynamic_.max_linear_vel_;
-        }
-        /*Backward movement*/
-        else if (joystick_.axes[1] < 0)
-        {
-            joy_vel.linear.x = -joystick_.axes[1] * whill_dynamic_.min_linear_vel_;
-        }
+            /*Add noise to joystick*/
+            joystick_.axes[0] += noise_generator_->getRandomValues().first;
+            joystick_.axes[1] += noise_generator_->getRandomValues().second;
 
-        //Angular velocity
-        joy_vel.angular.z = joystick_.axes[0] * whill_dynamic_.max_yaw_rate_;
+            /*Limit the joystick value*/
+            if (joystick_.axes[0] > 1)
+            {
+                joystick_.axes[0] = 1;
+            }
+            else if (joystick_.axes[0] < -1)
+            {
+                joystick_.axes[0] = -1;
+            }
+            if (joystick_.axes[1] > 1)
+            {
+                joystick_.axes[1] = 1;
+            }
+            else if (joystick_.axes[1] < -1)
+            {
+                joystick_.axes[1] = -1;
+            }
+        }
+    //Linear velocity
+    /*Forward movement*/
+    if (joystick_.axes[1] >= 0)
+    {
+        joy_vel.linear.x = joystick_.axes[1] * whill_dynamic_.max_linear_vel_;
+    }
+    /*Backward movement*/
+    else if (joystick_.axes[1] < 0)
+    {
+        joy_vel.linear.x = -joystick_.axes[1] * whill_dynamic_.min_linear_vel_;
+    }
+
+    //Angular velocity
+    joy_vel.angular.z = joystick_.axes[0] * whill_dynamic_.max_yaw_rate_;
     }
     // std::cout << "Joy vel linear: " << joy_vel.linear.x << std::endl;
     // std::cout << "Joy vel angular: " << joy_vel.angular.z << std::endl;
@@ -261,6 +273,13 @@ std::vector<ShareControl::State> ShareControl::generate_trajectory(const double 
     return trajectory;
 }
 
+double ShareControl::user_speed_cost(const double linear_vel, const double yaw_rate, const double user_linear_vel, const double user_yaw_rate)
+{
+    
+    return hypot(linear_speed_weight_*(linear_vel - user_linear_vel), 
+                                angular_speed_weight_ *(yaw_rate - user_yaw_rate));
+}
+
 double ShareControl::calculate_vel_pair_cost(const double linear_vel, 
     const double yaw_rate, 
     const wheelchair_control_support::msg::Gap &gap,
@@ -269,24 +288,24 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
     const std::vector<State>& traj)
 {
     const double w_user = 1.0;
-    const double w_angle = (gap.confident>0)?0.3:0.0; //0.3
+    // const double w_angle = (gap.confident>0)?0.3:0.0; //0.3
+    const double w_angle = 0.0;
     const double w_distance = w_angle;
-    const double w_obstacle = 0.1;
+    const double w_obstacle = 0.0;
     const double k = 5;
 
     State current_state{0,0,0,linear_vel, yaw_rate};
     State next_state = traj.back();
-    double user_cost = hypot(linear_vel - linear_vel_user, yaw_rate - yaw_rate_user);
     double obstacle_cost = exp(-closest_distance_to_obstacle(next_state));
     double angle_diff = next_state.yaw_ - std::atan2(gap.middle_point_y, gap.middle_point_x);
     if (abs(angle_diff) > M_PI)
     {
         angle_diff = 2 * M_PI - abs(angle_diff);
     }
-    footprint_ptr_->move_footprint(next_state.x_, next_state.y_, next_state.yaw_);
+    // footprint_ptr_->move_footprint(next_state.x_, next_state.y_, next_state.yaw_);
     // double distance_diff = - 1 /footprint_ptr_->distance_from_point_to_footprint(gap.middle_point_x, gap.middle_point_y);
 
-    return w_user * user_cost + 
+    return  user_weight_*user_speed_cost(linear_vel, yaw_rate, linear_vel_user, yaw_rate_user) + 
             w_angle * abs(angle_diff)*exp(k*gap.confident);
             // w_distance *exp(k*gap.confident)* distance_diff  + 
             w_obstacle * obstacle_cost;
@@ -480,37 +499,9 @@ void ShareControl::main_process()
             if(!is_vel_updated)
             {
                 std::cout << "No feasible trajectory found \n Recovery mode" << std::endl;
-                // cmd_vel_.linear.x = joy_vel_.linear.x;
-                // cmd_vel_.angular.z = joy_vel_.angular.z;
+                cmd_vel_.linear.x = -0.05;
+                cmd_vel_.angular.z = 0;
 
-                // double furthest_distance = -1e6;
-                // for (auto vel_pair : vel_pair_list)
-                // {
-                //     State current_state{0,0,0,vel_pair.first, vel_pair.second};
-                //     State next_state = current_state.next_state(period_);
-                //     footprint_ptr_->move_footprint(next_state.x_, next_state.y_, next_state.yaw_);
-                //     bool is_valid_velocity = true;  // Flag to check if the velocity is valid
-
-                //     // Check if any obstacle is inside the footprint
-                //     for (auto obs : obs_list_.poses)
-                //     {
-                //         if (footprint_ptr_->check_point_inside_footprint(obs.position.x, obs.position.y))
-                //         {
-                //             is_valid_velocity = false;  // If an obstacle is inside the footprint, invalidate the velocity
-                //             break;  // No need to check further, break out of the loop
-                //         }
-                //     }
-
-                //     // If no obstacle is inside the footprint, select this velocity
-                //     if (is_valid_velocity)
-                //     {
-                //         // Select this velocity (i.e., the valid velocity pair)
-                //         // Add your code here to process or save the valid velocity, for example:
-                //         cmd_vel_.linear.x = vel_pair.first;
-                //         cmd_vel_.angular.z = vel_pair.second;
-                //         break;  // Exit the loop once a valid velocity is found
-                //     }
-                // }
                 std::cout << "Selected velocity pair: " << cmd_vel_.linear.x << " " << cmd_vel_.angular.z << std::endl;
                 // std::cout << "Furthest distance: " << furthest_distance << std::endl;
             }
