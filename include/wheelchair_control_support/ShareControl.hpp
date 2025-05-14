@@ -164,6 +164,7 @@ public:
     void publish_vel_smooth(int no_step);
 
     double user_speed_cost(const double linear_vel, const double yaw_rate, const double user_linear_vel, const double user_yaw_rate);
+    double obstacle_cost(const std::vector<State>& traj);
 
 private:
     std::unique_ptr<NoiseGenerator> noise_generator_;
@@ -209,9 +210,14 @@ private:
     bool joystick_noise_{false};                // Add noise to joystick input
     double noise_freq_{5};                  // Frequency of noise generation
     double noise_std_{0.4};                   // Mean of noise
+
     double user_weight_{1.0};
     double linear_speed_weight_{1.0};
     double angular_speed_weight_{1.0};
+
+    double obstacle_weight_{1.0};
+    double repulsion_considered_range_{0.5}; 
+    double cost_reduction_factor_{1.0}; //Cost reduction factor for obstacle avoidance
 
     rclcpp::TimerBase::SharedPtr timer_;
 };

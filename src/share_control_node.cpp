@@ -40,6 +40,9 @@ ShareControl::ShareControl()
     this->declare_parameter("angular_speed_weight", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("noise_freq", rclcpp::PARAMETER_DOUBLE);
     this->declare_parameter("noise_std", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("obstacle_weight", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("repulsion_considered_range", rclcpp::PARAMETER_DOUBLE);
+    this->declare_parameter("cost_reduction_factor", rclcpp::PARAMETER_DOUBLE);
 
     predict_time_           = this->get_parameter("predict_time").as_double();
     predict_timestep_       = this->get_parameter("predict_timestep").as_double();
@@ -54,6 +57,9 @@ ShareControl::ShareControl()
     noise_std_             = this->get_parameter("noise_std").as_double();
     linear_speed_weight_    = this->get_parameter("linear_speed_weight").as_double();
     angular_speed_weight_   = this->get_parameter("angular_speed_weight").as_double();
+    obstacle_weight_        = this->get_parameter("obstacle_weight").as_double();
+    repulsion_considered_range_ = this->get_parameter("repulsion_considered_range").as_double();
+    cost_reduction_factor_  = this->get_parameter("cost_reduction_factor").as_double();
 
 
     whill_dynamic_.max_linear_vel_ = this->get_parameter("max_linear_vel").as_double();
@@ -280,6 +286,25 @@ double ShareControl::user_speed_cost(const double linear_vel, const double yaw_r
                                 angular_speed_weight_ *(yaw_rate - user_yaw_rate));
 }
 
+double ShareControl::obstacle_cost(const std::vector<State>& traj){
+    double cost{0};
+    if(obs_list_.poses.empty())
+    {
+        return 0;
+    }
+    for(auto state : traj)
+    {
+        auto min_dist = closest_distance_to_obstacle(state);
+        if(min_dist < 0)
+        {
+            break;
+        }
+        cost +=  min_dist > repulsion_considered_range_ ? 0 : exp(-cost_reduction_factor_ * min_dist);
+    }
+    cost /= traj.size();
+    return cost;
+}
+
 double ShareControl::calculate_vel_pair_cost(const double linear_vel, 
     const double yaw_rate, 
     const wheelchair_control_support::msg::Gap &gap,
@@ -287,16 +312,13 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
     const double yaw_rate_user,
     const std::vector<State>& traj)
 {
-    const double w_user = 1.0;
     // const double w_angle = (gap.confident>0)?0.3:0.0; //0.3
     const double w_angle = 0.0;
     const double w_distance = w_angle;
-    const double w_obstacle = 0.0;
     const double k = 5;
 
     State current_state{0,0,0,linear_vel, yaw_rate};
     State next_state = traj.back();
-    double obstacle_cost = exp(-closest_distance_to_obstacle(next_state));
     double angle_diff = next_state.yaw_ - std::atan2(gap.middle_point_y, gap.middle_point_x);
     if (abs(angle_diff) > M_PI)
     {
@@ -306,9 +328,9 @@ double ShareControl::calculate_vel_pair_cost(const double linear_vel,
     // double distance_diff = - 1 /footprint_ptr_->distance_from_point_to_footprint(gap.middle_point_x, gap.middle_point_y);
 
     return  user_weight_*user_speed_cost(linear_vel, yaw_rate, linear_vel_user, yaw_rate_user) + 
-            w_angle * abs(angle_diff)*exp(k*gap.confident);
+            w_angle * abs(angle_diff)*exp(k*gap.confident)+
             // w_distance *exp(k*gap.confident)* distance_diff  + 
-            w_obstacle * obstacle_cost;
+            obstacle_weight_ * obstacle_cost(traj);
 }
 
 
