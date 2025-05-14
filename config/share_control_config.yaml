@@ -8,7 +8,8 @@ share_control_node:
     linear_velocity_sample_size: 7
     yaw_rate_sample_size: 20
     joystick_noise: true
-    
+    noise_freq : 5.0
+    noise_std: 0.4
     max_linear_vel: 0.3      # max linear velocity in x direction (0.3-1.6)(m/s) 
     min_linear_vel: -0.3      # min linear velocity. 
                                # Can be negative in case of backward movement . (-0.3 - -0.8)(m/s)
@@ -20,6 +21,13 @@ share_control_node:
     rectangle_footprint:  # Specify detail about rectangular footprint
       use: true 
       height: 0.85
-      width: 0.60
+      width: 0.62
     footprint_radius: 0.4 # In case do not use rectangular footprint, circular footprint is used by default. This parameter regulate the radius 
                           # of circular footprint       
+    user_weight : 4.0
+    linear_speed_weight : 2.0
+    angular_speed_weight : 0.8
+
+    obstacle_weight : 1.0
+    repulsion_considered_range: 0.1
+    cost_reduction_factor: 10.0
