@@ -39,10 +39,10 @@ class LidarProcessingNode(Node):
         self.max_range = 4 # max range of the lidar. Point with larger range are discarded
         self.min_range = 0.0
         self.dbscan_eps = 0.1
-        self.dbscan_min_samples = 3
-        self.Tmax = 0.05 # Distance threshold to classify if point belong to a line or not. If distance from point to line < Tmax then point belong to line
+        self.dbscan_min_samples = 2
+        self.Tmax = 0.02 # Distance threshold to classify if point belong to a line or not. If distance from point to line < Tmax then point belong to line
         self.line_point_threshold = 8  # Line with more than line_point_threshold is considered a line. Less then it is not
-        self.use_line_filter = False
+        self.use_line_filter = True
 
     def scan_callback(self, msg):
         # Convert LaserScan to Cartesian Points

@@ -243,9 +243,7 @@ void SharedControllerNode::main_process()
             try{
                 auto goal = convert_gap_to_pose(observed_gap_);
                 geometry_msgs::msg::PoseStamped robot_pose;
-                nav2_util::getCurrentPose(
-                    robot_pose, *tf_buffer_,
-                    "base_footprint", "base_link");
+                nav2_util::getCurrentPose(robot_pose, *tf_buffer_,"base_footprint", "base_link");
 
                 geometry_msgs::msg::Twist robot_vel = odom_.twist.twist;
                 cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, user_vel);

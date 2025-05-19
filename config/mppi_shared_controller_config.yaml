@@ -17,10 +17,10 @@ shared_controller_node:
     shared_mppi_controller:
       time_steps: 40
       model_dt: 0.1
-      batch_size: 3000
-      vx_std: 0.3
+      batch_size: 2500
+      vx_std: 0.2
       vy_std: 0.0
-      wz_std: 0.3
+      wz_std: 0.2
       vx_max: 0.3
       vx_min: -0.3
       vy_max: 0.
@@ -31,7 +31,7 @@ shared_controller_node:
       az_max: 2.5 
       iteration_count: 1
       prune_distance: 1.7
-      temperature: 0.4
+      temperature: 0.3
       gamma: 0.015
       generate_noises: false
       motion_model: "DiffDrive"
@@ -40,48 +40,48 @@ shared_controller_node:
       retry_attempt_limit: 3
       regenerate_noises: false
       TrajectoryVisualizer:
-        trajectory_step: 10
-        time_step: 2
+        trajectory_step: 200
+        time_step: 5
       critics: ["ConstraintCritic", "GoalCritic", "GoalAngleCritic", "UserSpeedCritic", "LidarObstaclesCritic", "SmoothVelocityCritic"]
       ConstraintCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 10.0
+        cost_weight: 2.0
       GoalCritic:
         enabled: true
         cost_power: 1
         cost_weight: 2.0
         threshold_to_consider: 3.0
-        confidence_factor: 0
+        confidence_factor: 1
       GoalAngleCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 5.0
+        cost_weight: 2.0
         threshold_to_consider: 3.0
         confidence_factor: 1
       UserSpeedCritic:
-        enable: false
+        enable: true
         cost_power: 2
-        cost_weight: 2.0
+        cost_weight: 8.0
         decay_rate: 0.0
-        linear_speed_weight: 10.0 
-        angular_speed_weight: 0.8
+        linear_speed_weight: 2.0
+        angular_speed_weight: 1.0
       LidarObstaclesCritic:
         enabled: true
         cost_power: 1.0
-        weight: 1.0
+        weight: 0.03
         footprint_frame: "base_footprint"
         footprint_length: 0.85
-        footprint_width: 0.62
+        footprint_width: 0.6
         scan_topic: "/scan" 
-        collision_cost: 1000000.0
+        collision_cost: 100000000.0
         collision_considered_range: 2.0
-        repulsion_considered_range: 0.0 
-        cost_reduction_factor : 1
+        repulsion_considered_range: 0.1
+        cost_reduction_factor : 50
       SmoothVelocityCritic:
         enable: false
-        power: 2
-        weight: 10.0
+        power: 1
+        weight: 2.0
         linear_speed_weight: 1.0
         angular_speed_weight: 1.0
  

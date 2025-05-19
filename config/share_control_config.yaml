@@ -1,13 +1,13 @@
 share_control_node:
   ros__parameters:
-    predict_time:  2.0         #double
+    predict_time:  0.5     #double
     predict_timestep: 0.1     #double
     scan_to_obstacle_range: 2. #double 
     skip_point:  2             #int
     period: 0.1               #in second. Amount of time needed to complete one cycle of vel calculation
     linear_velocity_sample_size: 7
     yaw_rate_sample_size: 20
-    joystick_noise: true
+    joystick_noise: false
     noise_freq : 5.0
     noise_std: 0.4
     max_linear_vel: 0.3      # max linear velocity in x direction (0.3-1.6)(m/s) 
@@ -21,13 +21,13 @@ share_control_node:
     rectangle_footprint:  # Specify detail about rectangular footprint
       use: true 
       height: 0.85
-      width: 0.62
+      width: 0.6
     footprint_radius: 0.4 # In case do not use rectangular footprint, circular footprint is used by default. This parameter regulate the radius 
                           # of circular footprint       
-    user_weight : 4.0
-    linear_speed_weight : 2.0
-    angular_speed_weight : 0.8
+    user_weight : 2.0
+    linear_speed_weight : 1.0
+    angular_speed_weight : 1.0
 
-    obstacle_weight : 1.0
+    obstacle_weight : 0.0
     repulsion_considered_range: 0.1
     cost_reduction_factor: 10.0
