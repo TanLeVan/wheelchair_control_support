@@ -32,24 +32,24 @@ def generate_launch_description():
 
     list = [
 
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [this_pkg_share_dir,'/launch', '/whill_modelc.launch.py']
-                )
-        ),
-        ExecuteProcess(
-            cmd=service_command
-        ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [this_pkg_share_dir, '/launch', '/start_2_lidar.launch.py']
-            )
-        ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [this_pkg_share_dir, '/launch', '/merge_lidar.launch.py']
-            )
-        ),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource(
+        #         [this_pkg_share_dir,'/launch', '/whill_modelc.launch.py']
+        #         )
+        # ),
+        # ExecuteProcess(
+        #     cmd=service_command
+        # ),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource(
+        #         [this_pkg_share_dir, '/launch', '/start_2_lidar.launch.py']
+        #     )
+        # ),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource(
+        #         [this_pkg_share_dir, '/launch', '/merge_lidar.launch.py']
+        #     )
+        # ),
         Node(
             package='wheelchair_control_support',
             executable='shared_controller_node',

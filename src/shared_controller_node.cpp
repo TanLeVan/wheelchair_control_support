@@ -1,5 +1,4 @@
 #include <random>
-
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/twist.hpp"  
 #include "geometry_msgs/msg/point.hpp"
@@ -52,6 +51,9 @@ SharedControllerNode::SharedControllerNode() : rclcpp::Node("shared_controller_n
     gap_sub_ = this->create_subscription<wheelchair_control_support::msg::Gap>("/intended_gap", 1,
                                                     std::bind(&SharedControllerNode::gap_callback, this, std::placeholders::_1));
     joy_pub_ = this->create_publisher<sensor_msgs::msg::Joy>("/whill/controller/joy", 1);
+    path_sub_ = this->create_subscription<nav_msgs::msg::Path>("/plan", 1,
+                                                    std::bind(&SharedControllerNode::path_callback, this, std::placeholders::_1));
+
     traj_visualizer_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/user_trajectory_visualization", 1);
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -109,6 +111,12 @@ void SharedControllerNode::gap_callback(const wheelchair_control_support::msg::G
     observed_gap_ = msg;
     is_gap_updated_ = true;
 }   
+
+void SharedControllerNode::path_callback(const nav_msgs::msg::Path &msg)
+{
+    path_ = msg;
+    is_path_updated_ = true;
+}
 
 geometry_msgs::msg::Twist   SharedControllerNode::calculate_velocity_from_joy(sensor_msgs::msg::Joy & joy)
 {
@@ -229,7 +237,7 @@ void SharedControllerNode::user_trajectory_visualization()
 void SharedControllerNode::main_process()
 {
     // Check if new information from subscriber is received
-    if (is_odom_updated_ && is_joystick_updated_ && is_gap_updated_)
+    if (is_odom_updated_ && is_joystick_updated_ && is_gap_updated_ && is_path_updated_)
     {
         geometry_msgs::msg::Twist cmd_vel;
         auto user_vel = calculate_velocity_from_joy(joystick_);
@@ -246,7 +254,7 @@ void SharedControllerNode::main_process()
                 nav2_util::getCurrentPose(robot_pose, *tf_buffer_,"base_footprint", "base_link");
 
                 geometry_msgs::msg::Twist robot_vel = odom_.twist.twist;
-                cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, user_vel);
+                cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, path_, user_vel);
             }
             catch (const std::runtime_error& e) {
                     // Log the error message (optional)

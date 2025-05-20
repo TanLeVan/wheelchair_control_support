@@ -10,6 +10,7 @@
 
 #include "sensor_msgs/msg/joy.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/pose.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
@@ -42,6 +43,8 @@ private:
     void odom_callback(const nav_msgs::msg::Odometry &msg);
     void joystick_callback(const sensor_msgs::msg::Joy &msg);
     void gap_callback(const wheelchair_control_support::msg::Gap &msg);
+    void path_callback(const nav_msgs::msg::Path &msg);
+
 
     /**
      * @brief Convert joystick input to proportional velocity. Can add noise
@@ -80,15 +83,20 @@ private:
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_; //Sensor QoS should be use
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_; //Receive user input
     rclcpp::Subscription<wheelchair_control_support::msg::Gap>::SharedPtr gap_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
     rclcpp::Publisher<sensor_msgs::msg::Joy>::SharedPtr joy_pub_; //Using joy control as output to compensate for jerky motion of the wheelchair
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr traj_visualizer_pub_; //For visualizing trajectory
+
     nav_msgs::msg::Odometry odom_;
     sensor_msgs::msg::Joy joystick_;
     wheelchair_control_support::msg::Gap observed_gap_; //Observed gap with highest confidence
+    nav_msgs::msg::Path path_;
+
     /*Check if new information from subscriber is receieved*/
     bool is_odom_updated_{false};
     bool is_joystick_updated_{false};
     bool is_gap_updated_{false};
+    bool is_path_updated_{false};
 
     // Parameters
     bool joystick_noise_{false};                // Add noise to joystick input
