@@ -1,6 +1,6 @@
 share_control_node:
   ros__parameters:
-    predict_time:  0.5     #double
+    predict_time:  1.0    #double
     predict_timestep: 0.1     #double
     scan_to_obstacle_range: 2. #double 
     skip_point:  2             #int

@@ -11,8 +11,8 @@ planner_server:
 
 global_costmap/global_costmap:
   ros__parameters: 
-    update_frequency: 80.0
-    publish_frequency: 40.0
+    update_frequency: 20.0
+    publish_frequency: 20.0
     footprint: "[[0.75, 0.31],[0.75,-0.31],[-0.2,-0.31],[-0.2,0.31]]"  # Robot footprint
     global_frame: base_footprint
     robot_base_frame: base_link
@@ -34,7 +34,7 @@ global_costmap/global_costmap:
         sensor_frame: base_footprint
         obstacle_max_range: 3.0
         obstacle_min_range: 0.0
-        raytrace_max_range: 6.0
+        raytrace_max_range: 3.0
         raytrace_min_range: 0.0
         max_obstacle_height: 2.0
         min_obstacle_height: 0.0
@@ -44,8 +44,8 @@ global_costmap/global_costmap:
     inflation_layer:
       plugin: "nav2_costmap_2d::InflationLayer"
       enabled: true
-      inflation_radius: 0.5
-      cost_scaling_factor: 10.0
+      inflation_radius: 1.5
+      cost_scaling_factor: 5.0
       inflate_unknown: false
       inflate_around_unknown: true
 

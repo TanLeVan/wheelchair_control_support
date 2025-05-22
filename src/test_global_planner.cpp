@@ -103,13 +103,13 @@ private:
     // Access the planning_time which contains sec and nanosec components
     auto planning_time = result.result->planning_time;
 
-    // Combine seconds and nanoseconds into a single floating-point value
-    double total_time_in_seconds = planning_time.sec + planning_time.nanosec / 1e9;
+    // // Combine seconds and nanoseconds into a single floating-point value
+    // double total_time_in_seconds = planning_time.sec + planning_time.nanosec / 1e9;
 
-    // Print the total planning time in seconds (as a float)
-    RCLCPP_INFO(this->get_logger(), 
-                "Received result from action server: %f seconds", 
-                total_time_in_seconds);
+    // // Print the total planning time in seconds (as a float)
+    // RCLCPP_INFO(this->get_logger(), 
+    //             "Received result from action server: %f seconds", 
+    //             total_time_in_seconds);
   }
 
   // Callback for feedback from the action server
