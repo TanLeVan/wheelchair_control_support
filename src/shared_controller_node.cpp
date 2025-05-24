@@ -115,7 +115,6 @@ void SharedControllerNode::gap_callback(const wheelchair_control_support::msg::G
 void SharedControllerNode::path_callback(const nav_msgs::msg::Path &msg)
 {
     path_ = msg;
-    is_path_updated_ = true;
 }
 
 geometry_msgs::msg::Twist   SharedControllerNode::calculate_velocity_from_joy(sensor_msgs::msg::Joy & joy)
@@ -237,7 +236,7 @@ void SharedControllerNode::user_trajectory_visualization()
 void SharedControllerNode::main_process()
 {
     // Check if new information from subscriber is received
-    if (is_odom_updated_ && is_joystick_updated_ && is_gap_updated_ && is_path_updated_)
+    if (is_odom_updated_ && is_joystick_updated_ && is_gap_updated_)
     {
         geometry_msgs::msg::Twist cmd_vel;
         auto user_vel = calculate_velocity_from_joy(joystick_);
@@ -253,14 +252,12 @@ void SharedControllerNode::main_process()
                 geometry_msgs::msg::PoseStamped robot_pose;
                 nav2_util::getCurrentPose(robot_pose, *tf_buffer_,"base_footprint", "base_link");
                 geometry_msgs::msg::Twist robot_vel = odom_.twist.twist;
-
-                if(observed_gap_.confident > 0.0)
-                {
-                    cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, path_, user_vel);
-                }
-                else
+                if(observed_gap_.confident < 0.0)
                 {
                     cmd_vel =  mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, user_vel);
+                }
+                else{
+                    cmd_vel = mppi_controller_->computeVelocityCommands(robot_pose, robot_vel, goal, observed_gap_.confident, path_, user_vel);
                 }
                 
                 

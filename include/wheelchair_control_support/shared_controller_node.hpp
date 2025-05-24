@@ -96,7 +96,6 @@ private:
     bool is_odom_updated_{false};
     bool is_joystick_updated_{false};
     bool is_gap_updated_{false};
-    bool is_path_updated_{false};
 
     // Parameters
     bool joystick_noise_{false};                // Add noise to joystick input

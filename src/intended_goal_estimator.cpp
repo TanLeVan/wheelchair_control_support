@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <nlohmann/json.hpp>
 
+#define GAP_BIAS 0.2 //only gap confidence - no goal confidence > GAP_BIAS is considered as intended gap
+
 
 GapIntentionEstimator::GapIntentionEstimator()
     : rclcpp::Node("gap_intention_estimator")
@@ -239,17 +241,17 @@ void GapIntentionEstimator::laser_scan_callback(const sensor_msgs::msg::LaserSca
         std::cout << "No-Goal Posterior: " << no_goal_prob << std::endl;
 
         int id = 0;
-        gap_visualize_publisher_->publish(gap_finder_.visualize_gaps(*scan_msg, observed_gap_,no_goal_prob ,id));
+        gap_visualize_publisher_->publish(gap_finder_.visualize_gaps(*scan_msg, observed_gap_,no_goal_prob + GAP_BIAS ,id));
     
 
         wheelchair_control_support::msg::Gap found_gap;
         if(!observed_gap_.empty())
         {
             auto max_gap = std::max_element(observed_gap_.begin(), observed_gap_.end(), [](const Gap& a, const Gap& b) {return a.get_confident() < b.get_confident();});
-            if(max_gap->get_confident() > no_goal_prob)
+            if(max_gap->get_confident() - no_goal_prob > GAP_BIAS )
             {
                 found_gap.header = scan_msg->header;
-                found_gap.confident = max_gap->get_confident() - no_goal_prob;
+                found_gap.confident = max_gap->get_confident() - no_goal_prob - GAP_BIAS;
                 found_gap.left_point_x = max_gap->get_l_cartesian().first;
                 found_gap.left_point_y = max_gap->get_l_cartesian().second;
                 found_gap.right_point_x = max_gap->get_r_cartesian().first;

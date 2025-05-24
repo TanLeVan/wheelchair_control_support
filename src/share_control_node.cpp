@@ -491,9 +491,15 @@ void ShareControl::main_process()
             cmd_vel_.linear.x = 0;
             cmd_vel_.angular.z = 0;   
         }
+        else if (!check_for_colllision(joy_traj))
+        {
+            cmd_vel_.linear.x = joy_vel_.linear.x;
+            cmd_vel_.angular.z = joy_vel_.angular.z;
+            trajectory_visualization(joy_traj);
+
+        }
         else 
         {
-            // if (observed_gap_.confident > 0){std::cout << "Intended gap detected" << std::endl;} else{std::cout << "No gap detected" << std::endl;}
             Window window = cal_dynamic_window();
             std::vector<std::pair<double, double>> vel_pair_list = discretize_dynamic_window(window);
             double min_cost{1e6};
@@ -534,10 +540,9 @@ void ShareControl::main_process()
 
         //Control with virtual joystick control
         joy_pub_->publish(calculate_joy_from_velocity(cmd_vel_));
-        // vel_pub_->publish(cmd_vel_);
         is_scan_updated_ = false;
         is_odom_updated_ = false;
-        is_joystick_updated_ = false;
+        is_joystick_updated_ = false;    
     }
 }
 
