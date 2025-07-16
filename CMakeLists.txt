@@ -46,6 +46,20 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 add_executable(simple_velocity_publisher src/simple_velocity_publisher.cpp)
 ament_target_dependencies(simple_velocity_publisher rclcpp geometry_msgs)
 
+add_executable(cal_min_distance_to_obs src/cal_min_distance_to_obs_from_rosbag.cpp)
+ament_target_dependencies(cal_min_distance_to_obs
+  rclcpp
+  geometry_msgs
+  sensor_msgs
+  wheelchair_control_support
+  visualization_msgs
+  tf2_geometry_msgs
+  tf2
+  tf2_ros
+  nav2_msgs
+
+)
+
 add_executable(test_global_planner src/test_global_planner.cpp)
 ament_target_dependencies(test_global_planner
   rclcpp
@@ -191,6 +205,7 @@ target_link_libraries(scan_filter ${PCL_LIBRARIES})
 
 install(
   TARGETS 
+    cal_min_distance_to_obs
     test_global_planner
     test_footprint
     simple_velocity_publisher 
@@ -221,7 +236,8 @@ install(DIRECTORY
 	config 
 	launch
 	model
-  data
+  	data
+  	map
   DESTINATION share/${PROJECT_NAME}
 )
 

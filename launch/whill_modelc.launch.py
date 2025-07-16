@@ -16,7 +16,6 @@ def generate_launch_description():
     with open(urdf_file, 'r') as infp:
             robot_desc = infp.read()
     params = {'robot_description': robot_desc}
-
     list = [
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(

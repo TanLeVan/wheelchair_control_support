@@ -19,7 +19,7 @@ class FindGap
 private:
     const double mk_gap_length_threshold{0.6}; //Threshold for gap length. Gap < threshold will be omitted
     const double mk_gap_angle_threshold{M_PI}; // Gap with arc anngle > threshold will be ommited
-    const double mk_merged_gap_angle_threshold {2*M_PI/3}; // 
+    const double mk_merged_gap_angle_threshold {2*M_PI/3}; // Merge gap until the new gap arc angle is smaller than this threshold
 
 public:
     /**

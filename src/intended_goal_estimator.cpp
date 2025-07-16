@@ -10,7 +10,7 @@
 #include <cstdlib>
 #include <nlohmann/json.hpp>
 
-#define GAP_BIAS 0.2 //only gap confidence - no goal confidence > GAP_BIAS is considered as intended gap
+#define GAP_BIAS 0.0 //only gap confidence - no goal confidence > GAP_BIAS is considered as intended gap
 
 
 GapIntentionEstimator::GapIntentionEstimator()
